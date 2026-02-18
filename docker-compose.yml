@@ -1,0 +1,81 @@
+name: greenvic-cdc
+
+services:
+  cdc-infra:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cdc-infra
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}"
+    ports:
+      - "1433:1433"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - cdc-sql-data:/var/opt/mssql
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $$MSSQL_SA_PASSWORD -Q \"SELECT 1\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 45s
+
+  cdc-back:
+    build:
+      context: ../cdc-back
+      dockerfile: Dockerfile
+    container_name: cdc-back
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: "${JWT_SECRET:-change-me-in-env}"
+      JWT_EXPIRES_IN: "${JWT_EXPIRES_IN:-8h}"
+      DB_HOST: cdc-infra
+      DB_PORT: 1433
+      DB_USER: sa
+      DB_PASSWORD: "${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}"
+      DB_NAME: cdcdb
+    depends_on:
+      cdc-infra:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+
+  cdc-front:
+    build:
+      context: ../cdc-front
+      dockerfile: Dockerfile
+    container_name: cdc-front
+    depends_on:
+      cdc-back:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+      - /var/cache/nginx:size=32m
+      - /var/run:size=8m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    restart: unless-stopped
+    ports:
+      - "3001:8080"
+
+volumes:
+  cdc-sql-data:
