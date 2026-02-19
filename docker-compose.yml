@@ -10,6 +10,8 @@ services:
       ACCEPT_EULA: "Y"
       MSSQL_PID: "Developer"
       MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}"
+      DB_INIT_MODE: "${DB_INIT_MODE:-once}"
+      DB_INIT_RUN_DOWN: "${DB_INIT_RUN_DOWN:-true}"
     ports:
       - "1433:1433"
     restart: unless-stopped
@@ -19,7 +21,7 @@ services:
       - cdc-sql-data:/var/opt/mssql
       - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $$MSSQL_SA_PASSWORD -Q \"SELECT 1\" || exit 1"]
+      test: ["CMD-SHELL", "test -f /var/opt/mssql/.cdc_initialized && /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $$MSSQL_SA_PASSWORD -Q \"SELECT 1\" || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 20
@@ -39,7 +41,7 @@ services:
       DB_PORT: 1433
       DB_USER: sa
       DB_PASSWORD: "${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}"
-      DB_NAME: cdcdb
+      DB_NAME: master
     depends_on:
       cdc-infra:
         condition: service_healthy
@@ -53,7 +55,7 @@ services:
     pids_limit: 256
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3001:3000"
 
   cdc-front:
     build:
@@ -63,11 +65,12 @@ services:
     depends_on:
       cdc-back:
         condition: service_healthy
+    environment:
+      BACKEND_INTERNAL_URL: "http://cdc-back:3000"
+      NEXT_PUBLIC_API_BASE_URL: "/api-proxy/v1"
     read_only: true
     tmpfs:
       - /tmp:size=32m
-      - /var/cache/nginx:size=32m
-      - /var/run:size=8m
     cap_drop:
       - ALL
     security_opt:
@@ -75,7 +78,7 @@ services:
     pids_limit: 128
     restart: unless-stopped
     ports:
-      - "3001:8080"
+      - "3000:3000"
 
 volumes:
   cdc-sql-data:
