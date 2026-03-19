@@ -9,9 +9,9 @@ services:
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_PID: "Developer"
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}"
-      DB_INIT_MODE: "${DB_INIT_MODE:-once}"
-      DB_INIT_RUN_DOWN: "${DB_INIT_RUN_DOWN:-true}"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      DB_INIT_MODE: "${DB_INIT_MODE}"
+      DB_INIT_RUN_DOWN: "${DB_INIT_RUN_DOWN}"
     ports:
       - "1433:1433"
     restart: unless-stopped
@@ -35,13 +35,15 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
-      JWT_SECRET: "${JWT_SECRET:-change-me-in-env}"
-      JWT_EXPIRES_IN: "${JWT_EXPIRES_IN:-8h}"
+      JWT_SECRET: "${JWT_SECRET}"
+      JWT_EXPIRES_IN: "${JWT_EXPIRES_IN}"
       DB_HOST: cdc-infra
       DB_PORT: 1433
       DB_USER: sa
-      DB_PASSWORD: "${MSSQL_SA_PASSWORD:-YourStrong!Passw0rd}"
+      DB_PASSWORD: "${MSSQL_SA_PASSWORD}"
       DB_NAME: master
+      DB_ENCRYPT: "${DB_ENCRYPT}"
+      DB_TRUST_SERVER_CERTIFICATE: "${DB_TRUST_SERVER_CERTIFICATE}"
     depends_on:
       cdc-infra:
         condition: service_healthy

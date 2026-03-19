@@ -243,6 +243,7 @@ CREATE TABLE [cdc].[CDC_cuadro] (
     [id_condicion]  INTEGER NOT NULL,
     [nombre]        VARCHAR(100) NOT NULL,
     [estado]        TINYINT NOT NULL,
+    [superficie]    FLOAT NULL,
     [observaciones] VARCHAR(300) NULL,
     [fecha_estimada_cosecha] DATETIME2(0) NOT NULL,
     CONSTRAINT [PK_CDC_Cuadro] PRIMARY KEY([id_cuadro])
@@ -290,6 +291,16 @@ CREATE TABLE [cdc].[CDC_regla] (
     [fecha_fuente] DATETIME2(0) NULL,
     CONSTRAINT [PK_CDC_regla] PRIMARY KEY([id_regla])
 );
+GO
+
+/* =========================
+   Ajustes incrementalmente idempotentes
+========================= */
+IF COL_LENGTH('cdc.CDC_cuadro', 'superficie') IS NULL
+BEGIN
+    ALTER TABLE [cdc].[CDC_cuadro]
+    ADD [superficie] FLOAT NULL;
+END
 GO
 
 /* =========================
