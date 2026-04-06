@@ -1,86 +1,109 @@
 name: greenvic-cdc
 
+x-node-service: &node-service
+  image: node:20-bookworm-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
+  init: true
+  restart: unless-stopped
+  pull_policy: if_not_present
+  security_opt:
+    - no-new-privileges:true
+  environment:
+    NODE_ENV: "${NODE_ENV:-development}"
+    NPM_CONFIG_FETCH_RETRIES: "5"
+    NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
+    NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
+    NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
+    NPM_CONFIG_AUDIT: "false"
+    NPM_CONFIG_FUND: "false"
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
 services:
-  cdc-infra:
+  front-ng:
     build:
-      context: .
+      context: ../cdc-front-ng
       dockerfile: Dockerfile
-    container_name: cdc-infra
-    environment:
-      ACCEPT_EULA: "Y"
-      MSSQL_PID: "Developer"
-      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
-      DB_INIT_MODE: "${DB_INIT_MODE}"
-      DB_INIT_RUN_DOWN: "${DB_INIT_RUN_DOWN}"
-    ports:
-      - "1433:1433"
+    image: cdc-front-ng:local
+    init: true
     restart: unless-stopped
+    pull_policy: if_not_present
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx:uid=101,gid=101
+      - /var/run:uid=101,gid=101
+      - /tmp
     security_opt:
       - no-new-privileges:true
-    volumes:
-      - cdc-sql-data:/var/opt/mssql
-      - ./initdb:/docker-entrypoint-initdb.d:ro
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
+    expose:
+      - "80"
     healthcheck:
-      test: ["CMD-SHELL", "test -f /var/opt/mssql/.cdc_initialized && /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $$MSSQL_SA_PASSWORD -Q \"SELECT 1\" || exit 1"]
+      test:
+        ["CMD-SHELL", "wget -q -O - http://127.0.0.1/healthz > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  back:
+    <<: *node-service
+    profiles: ["node"]
+    working_dir: /workspace/cdc-back
+    env_file:
+      - ./.env
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    environment:
+      NODE_ENV: "${NODE_ENV:-development}"
+      NPM_CONFIG_FETCH_RETRIES: "5"
+      NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
+      NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
+      NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      PORT: "${PORT:-3000}"
+    expose:
+      - "3000"
+    networks:
+      default:
+        aliases:
+          - api-backend
+      egress:
+      identity:
+    volumes:
+      - ../cdc-back:/workspace/cdc-back
+      - back-node_modules:/workspace/cdc-back/node_modules
+      - npm-cache:/root/.npm
+    command: >
+      sh -lc "if [ ! -f node_modules/express/package.json ] || [ ! -f node_modules/mssql/package.json ]; then npm install --prefer-offline --no-audit --no-fund; fi && npm run dev"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode>=200&&r.statusCode<500?0:1)).on('error',()=>process.exit(1))\"",
+        ]
       interval: 15s
       timeout: 5s
       retries: 20
-      start_period: 45s
-
-  cdc-back:
-    build:
-      context: ../cdc-back
-      dockerfile: Dockerfile
-    container_name: cdc-back
-    environment:
-      NODE_ENV: production
-      PORT: 3000
-      JWT_SECRET: "${JWT_SECRET}"
-      JWT_EXPIRES_IN: "${JWT_EXPIRES_IN}"
-      DB_HOST: cdc-infra
-      DB_PORT: 1433
-      DB_USER: sa
-      DB_PASSWORD: "${MSSQL_SA_PASSWORD}"
-      DB_NAME: master
-      DB_ENCRYPT: "${DB_ENCRYPT}"
-      DB_TRUST_SERVER_CERTIFICATE: "${DB_TRUST_SERVER_CERTIFICATE}"
-    depends_on:
-      cdc-infra:
-        condition: service_healthy
-    read_only: true
-    tmpfs:
-      - /tmp:size=64m
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    pids_limit: 256
-    restart: unless-stopped
-    ports:
-      - "3001:3000"
-
-  cdc-front:
-    build:
-      context: ../cdc-front
-      dockerfile: Dockerfile
-    container_name: cdc-front
-    depends_on:
-      cdc-back:
-        condition: service_healthy
-    environment:
-      BACKEND_INTERNAL_URL: "http://cdc-back:3000"
-      NEXT_PUBLIC_API_BASE_URL: "/api-proxy/v1"
-    read_only: true
-    tmpfs:
-      - /tmp:size=32m
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    pids_limit: 128
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
+      start_period: 30s
 
 volumes:
-  cdc-sql-data:
+  npm-cache:
+  back-node_modules:
+
+networks:
+  default:
+    external: true
+    name: greenvic-cdc_default
+  egress:
+    name: greenvic-cdc_egress
+  identity:
+    external: true
+    name: platform_identity
