@@ -40,10 +40,14 @@ services:
           memory: 128M
           cpus: "0.5"
     expose:
-      - "80"
+      - "3000"
+    networks:
+      default:
+        aliases:
+          - cdc-frontend
     healthcheck:
       test:
-        ["CMD-SHELL", "wget -q -O - http://127.0.0.1/healthz > /dev/null 2>&1 || exit 1"]
+        ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3000/healthz > /dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -68,13 +72,13 @@ services:
       NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
       NPM_CONFIG_AUDIT: "false"
       NPM_CONFIG_FUND: "false"
-      PORT: "${PORT:-3000}"
+      PORT: "${PORT:-4000}"
     expose:
-      - "3000"
+      - "4000"
     networks:
       default:
         aliases:
-          - api-backend
+          - cdc-backend
       egress:
       identity:
     volumes:
@@ -87,7 +91,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "node -e \"require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode>=200&&r.statusCode<500?0:1)).on('error',()=>process.exit(1))\"",
+          "node -e \"require('http').get('http://127.0.0.1:4000/api/health',r=>process.exit(r.statusCode>=200&&r.statusCode<500?0:1)).on('error',()=>process.exit(1))\"",
         ]
       interval: 15s
       timeout: 5s

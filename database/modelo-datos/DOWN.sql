@@ -4,44 +4,43 @@ GO
 
 /* =============================================================================
    DROP COMPLETO CDC (DATA + OBJETOS) + ESQUEMA
-   - Elimina datos (por si hay FKs)
-   - Luego elimina FKs, tablas y finalmente el schema [cdc]
-   - Ejecutar en la BD objetivo (ej: DBPRD)
+   - Borra datos respetando dependencias.
+   - Elimina FKs, tablas y finalmente el schema [cdc].
 ============================================================================= */
 
 BEGIN TRY
     BEGIN TRAN;
 
     /* 1) BORRAR DATA (hijos -> padres) */
-    IF OBJECT_ID('cdc.CDC_auditoria','U') IS NOT NULL DELETE FROM cdc.CDC_auditoria;
+    IF OBJECT_ID('cdc.Auditoria','U')           IS NOT NULL DELETE FROM cdc.Auditoria;
 
-    IF OBJECT_ID('cdc.CDC_regla','U') IS NOT NULL DELETE FROM cdc.CDC_regla;
-    IF OBJECT_ID('cdc.CDC_producto_especie','U') IS NOT NULL DELETE FROM cdc.CDC_producto_especie;
-    IF OBJECT_ID('cdc.CDC_ingrediente_producto','U') IS NOT NULL DELETE FROM cdc.CDC_ingrediente_producto;
+    IF OBJECT_ID('cdc.Regla','U')               IS NOT NULL DELETE FROM cdc.Regla;
+    IF OBJECT_ID('cdc.ProductoEspecie','U')     IS NOT NULL DELETE FROM cdc.ProductoEspecie;
+    IF OBJECT_ID('cdc.IngredienteProducto','U') IS NOT NULL DELETE FROM cdc.IngredienteProducto;
 
-    IF OBJECT_ID('cdc.CDC_aplicacion','U') IS NOT NULL DELETE FROM cdc.CDC_aplicacion;
-    IF OBJECT_ID('cdc.CDC_Cuadro','U') IS NOT NULL DELETE FROM cdc.CDC_Cuadro;
+    IF OBJECT_ID('cdc.Aplicacion','U')          IS NOT NULL DELETE FROM cdc.Aplicacion;
+    IF OBJECT_ID('cdc.Cuadro','U')              IS NOT NULL DELETE FROM cdc.Cuadro;
 
-    IF OBJECT_ID('cdc.CDC_producto','U') IS NOT NULL DELETE FROM cdc.CDC_producto;
-    IF OBJECT_ID('cdc.CDC_ingrediente_activo','U') IS NOT NULL DELETE FROM cdc.CDC_ingrediente_activo;
-    IF OBJECT_ID('cdc.CDC_familia_quimico','U') IS NOT NULL DELETE FROM cdc.CDC_familia_quimico;
+    IF OBJECT_ID('cdc.Producto','U')            IS NOT NULL DELETE FROM cdc.Producto;
+    IF OBJECT_ID('cdc.IngredienteActivo','U')   IS NOT NULL DELETE FROM cdc.IngredienteActivo;
+    IF OBJECT_ID('cdc.FamiliaQuimico','U')      IS NOT NULL DELETE FROM cdc.FamiliaQuimico;
 
-    IF OBJECT_ID('cdc.CDC_variedad','U') IS NOT NULL DELETE FROM cdc.CDC_variedad;
-    IF OBJECT_ID('cdc.CDC_especie','U') IS NOT NULL DELETE FROM cdc.CDC_especie;
+    IF OBJECT_ID('cdc.Variedad','U')            IS NOT NULL DELETE FROM cdc.Variedad;
+    IF OBJECT_ID('cdc.Especie','U')             IS NOT NULL DELETE FROM cdc.Especie;
 
-    IF OBJECT_ID('cdc.CDC_predio','U') IS NOT NULL DELETE FROM cdc.CDC_predio;
-    IF OBJECT_ID('cdc.CDC_fundo','U') IS NOT NULL DELETE FROM cdc.CDC_fundo;
-    IF OBJECT_ID('cdc.CDC_agronomo','U') IS NOT NULL DELETE FROM cdc.CDC_agronomo;
-    IF OBJECT_ID('cdc.CDC_productor','U') IS NOT NULL DELETE FROM cdc.CDC_productor;
+    IF OBJECT_ID('cdc.Predio','U')              IS NOT NULL DELETE FROM cdc.Predio;
+    IF OBJECT_ID('cdc.Fundo','U')               IS NOT NULL DELETE FROM cdc.Fundo;
+    IF OBJECT_ID('cdc.Agronomo','U')            IS NOT NULL DELETE FROM cdc.Agronomo;
+    IF OBJECT_ID('cdc.Productor','U')           IS NOT NULL DELETE FROM cdc.Productor;
 
-    IF OBJECT_ID('cdc.CDC_patogeno','U') IS NOT NULL DELETE FROM cdc.CDC_patogeno;
-    IF OBJECT_ID('cdc.CDC_tipo_agua','U') IS NOT NULL DELETE FROM cdc.CDC_tipo_agua;
-    IF OBJECT_ID('cdc.CDC_mercado','U') IS NOT NULL DELETE FROM cdc.CDC_mercado;
-    IF OBJECT_ID('cdc.CDC_exportador','U') IS NOT NULL DELETE FROM cdc.CDC_exportador;
-    IF OBJECT_ID('cdc.CDC_condicion_fruta','U') IS NOT NULL DELETE FROM cdc.CDC_condicion_fruta;
-    IF OBJECT_ID('cdc.CDC_temporada','U') IS NOT NULL DELETE FROM cdc.CDC_temporada;
+    IF OBJECT_ID('cdc.Patogeno','U')            IS NOT NULL DELETE FROM cdc.Patogeno;
+    IF OBJECT_ID('cdc.TipoAgua','U')            IS NOT NULL DELETE FROM cdc.TipoAgua;
+    IF OBJECT_ID('cdc.Mercado','U')             IS NOT NULL DELETE FROM cdc.Mercado;
+    IF OBJECT_ID('cdc.Exportador','U')          IS NOT NULL DELETE FROM cdc.Exportador;
+    IF OBJECT_ID('cdc.CondicionFruta','U')      IS NOT NULL DELETE FROM cdc.CondicionFruta;
+    IF OBJECT_ID('cdc.Temporada','U')           IS NOT NULL DELETE FROM cdc.Temporada;
 
-    IF OBJECT_ID('cdc.CDC_usuario','U') IS NOT NULL DELETE FROM cdc.CDC_usuario;
+    IF OBJECT_ID('cdc.Usuario','U')             IS NOT NULL DELETE FROM cdc.Usuario;
 
     COMMIT TRAN;
 END TRY

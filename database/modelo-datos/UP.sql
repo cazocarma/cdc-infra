@@ -4,10 +4,14 @@ GO
 
 /* =============================================================================
    MODELO CDC (Cuaderno de Campo) - Esquema: cdc
-   - Tablas prefijo CDC_
-   - Relaciones FK corregidas
-   - CDC_usuario + CDC_auditoria para registro de cambios
-   - CDC_regla soporta ppm como texto (ST/EX) + vigencia/unidad/fuente
+   Convenciones:
+     - Tablas en PascalCase, sin prefijo de aplicacion.
+     - Columnas en PascalCase. PK = Id. FKs = <Padre>Id.
+     - Restricciones: PK_<Tabla>, FK_<Hija>_<Padre>, UQ_<Tabla>_<Cols>,
+                      DF_<Tabla>_<Col>, CK_<Tabla>_<Col>.
+     - NVARCHAR para texto libre con posibles acentos.
+     - VARCHAR solo para identificadores/codigos ASCII.
+     - CreatedAt/UpdatedAt en tablas mutables principales.
 ============================================================================= */
 
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'cdc')
@@ -15,393 +19,405 @@ IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'cdc')
 GO
 
 /* =========================
-   CDC_usuario (independiente)
+   Usuario
 ========================= */
-CREATE TABLE [cdc].[CDC_usuario] (
-    [id_usuario]     BIGINT IDENTITY(1,1) NOT NULL,
-    [usuario]        VARCHAR(50)  NOT NULL,
-    [nombre]         VARCHAR(100) NOT NULL,
-    [email]          VARCHAR(100) NULL,
-    [password_hash]  VARCHAR(255) NULL,
-    [activo]         BIT NOT NULL CONSTRAINT DF_CDC_usuario_activo DEFAULT(1),
-    [created_at]     DATETIME2(0) NOT NULL CONSTRAINT DF_CDC_usuario_created DEFAULT(SYSUTCDATETIME()),
-    [updated_at]     DATETIME2(0) NOT NULL CONSTRAINT DF_CDC_usuario_updated DEFAULT(SYSUTCDATETIME()),
-    CONSTRAINT [PK_CDC_usuario] PRIMARY KEY ([id_usuario]),
-    CONSTRAINT [UQ_CDC_usuario_usuario] UNIQUE ([usuario])
+CREATE TABLE [cdc].[Usuario] (
+    [Id]            BIGINT IDENTITY(1,1) NOT NULL,
+    [Usuario]       VARCHAR(50)     NOT NULL,
+    [Nombre]        NVARCHAR(100)   NOT NULL,
+    [Email]         NVARCHAR(150)   NULL,
+    [PasswordHash]  VARCHAR(255)    NULL,
+    [Activo]        BIT             NOT NULL CONSTRAINT [DF_Usuario_Activo]    DEFAULT(1),
+    [CreatedAt]     DATETIME2(0)    NOT NULL CONSTRAINT [DF_Usuario_CreatedAt] DEFAULT(SYSUTCDATETIME()),
+    [UpdatedAt]     DATETIME2(0)    NOT NULL CONSTRAINT [DF_Usuario_UpdatedAt] DEFAULT(SYSUTCDATETIME()),
+    CONSTRAINT [PK_Usuario]         PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_Usuario_Usuario] UNIQUE ([Usuario])
 );
 GO
 
 /* =========================
-   CDC_auditoria
+   Auditoria
 ========================= */
-CREATE TABLE [cdc].[CDC_auditoria] (
-    [id_auditoria] BIGINT IDENTITY(1,1) NOT NULL,
-    [id_usuario]   BIGINT NULL,
-    [fecha_evento] DATETIME2(0) NOT NULL CONSTRAINT DF_CDC_auditoria_fecha DEFAULT(SYSUTCDATETIME()),
-    [operacion]    VARCHAR(10)  NOT NULL,
-    [tabla]        VARCHAR(128) NOT NULL,
-    [pk]           VARCHAR(200) NOT NULL,
-    [detalle]      VARCHAR(500) NULL,
-    [before_json]  NVARCHAR(MAX) NULL,
-    [after_json]   NVARCHAR(MAX) NULL,
-    [origen]       VARCHAR(50) NULL CONSTRAINT DF_CDC_auditoria_origen DEFAULT('UI'),
-    CONSTRAINT [PK_CDC_auditoria] PRIMARY KEY ([id_auditoria])
+CREATE TABLE [cdc].[Auditoria] (
+    [Id]           BIGINT IDENTITY(1,1) NOT NULL,
+    [UsuarioId]    BIGINT          NULL,
+    [FechaEvento]  DATETIME2(0)    NOT NULL CONSTRAINT [DF_Auditoria_FechaEvento] DEFAULT(SYSUTCDATETIME()),
+    [Operacion]    VARCHAR(10)     NOT NULL,
+    [Tabla]        VARCHAR(128)    NOT NULL,
+    [Pk]           VARCHAR(200)    NOT NULL,
+    [Detalle]      NVARCHAR(500)   NULL,
+    [BeforeJson]   NVARCHAR(MAX)   NULL,
+    [AfterJson]    NVARCHAR(MAX)   NULL,
+    [Origen]       VARCHAR(50)     NULL CONSTRAINT [DF_Auditoria_Origen] DEFAULT('UI'),
+    CONSTRAINT [PK_Auditoria] PRIMARY KEY ([Id])
 );
-GO
-
-ALTER TABLE [cdc].[CDC_auditoria]
-ADD CONSTRAINT [FK_CDC_auditoria_usuario]
-FOREIGN KEY([id_usuario]) REFERENCES [cdc].[CDC_usuario]([id_usuario]);
 GO
 
 /* =========================
    Mantenedores base
 ========================= */
-CREATE TABLE [cdc].[CDC_temporada] (
-    [id_temporada] INTEGER IDENTITY(1,1) NOT NULL,
-    [codigo]       VARCHAR(20)  NOT NULL,
-    [nombre]       VARCHAR(100) NOT NULL,
-    [fecha_inicio] DATETIME2(0) NOT NULL,
-    [fecha_fin]    DATETIME2(0) NOT NULL,
-    [activa]       BIT NOT NULL,
-    CONSTRAINT [PK_CDC_temporada] PRIMARY KEY ([id_temporada]),
-    CONSTRAINT [UQ_CDC_temporada_codigo] UNIQUE ([codigo])
+CREATE TABLE [cdc].[Temporada] (
+    [Id]          INT IDENTITY(1,1) NOT NULL,
+    [Codigo]      VARCHAR(20)   NOT NULL,
+    [Nombre]      NVARCHAR(100) NOT NULL,
+    [FechaInicio] DATETIME2(0)  NOT NULL,
+    [FechaFin]    DATETIME2(0)  NOT NULL,
+    [Activa]      BIT           NOT NULL CONSTRAINT [DF_Temporada_Activa] DEFAULT(0),
+    CONSTRAINT [PK_Temporada]        PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_Temporada_Codigo] UNIQUE ([Codigo]),
+    CONSTRAINT [CK_Temporada_Fechas] CHECK ([FechaFin] >= [FechaInicio])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_exportador] (
-    [id_exportador] INTEGER IDENTITY(1,1) NOT NULL,
-    [codigo]        VARCHAR(20)  NOT NULL,
-    [nombre]        VARCHAR(100) NOT NULL,
-    [activo]        BIT NOT NULL,
-    CONSTRAINT [PK_CDC_exportador] PRIMARY KEY ([id_exportador]),
-    CONSTRAINT [UQ_CDC_exportador_codigo] UNIQUE ([codigo])
+CREATE TABLE [cdc].[Exportador] (
+    [Id]     INT IDENTITY(1,1) NOT NULL,
+    [Codigo] VARCHAR(20)   NOT NULL,
+    [Nombre] NVARCHAR(100) NOT NULL,
+    [Activo] BIT           NOT NULL CONSTRAINT [DF_Exportador_Activo] DEFAULT(1),
+    CONSTRAINT [PK_Exportador]        PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_Exportador_Codigo] UNIQUE ([Codigo])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_productor] (
-    [id_productor] INTEGER IDENTITY(1,1) NOT NULL,
-    [rut]          VARCHAR(20)  NOT NULL,
-    [nombre]       VARCHAR(100) NOT NULL,
-    [direccion]    VARCHAR(200) NULL,
-    CONSTRAINT [PK_CDC_productor] PRIMARY KEY ([id_productor]),
-    CONSTRAINT [UQ_CDC_productor_rut] UNIQUE ([rut])
+CREATE TABLE [cdc].[Productor] (
+    [Id]        INT IDENTITY(1,1) NOT NULL,
+    [Rut]       VARCHAR(20)   NOT NULL,
+    [Nombre]    NVARCHAR(100) NOT NULL,
+    [Direccion] NVARCHAR(200) NULL,
+    CONSTRAINT [PK_Productor]     PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_Productor_Rut] UNIQUE ([Rut])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_agronomo] (
-    [id_agronomo] INTEGER IDENTITY(1,1) NOT NULL,
-    [rut]         VARCHAR(20)  NOT NULL,
-    [nombre]      VARCHAR(100) NOT NULL,
-    [email]       VARCHAR(100) NULL,
-    CONSTRAINT [PK_CDC_agronomo] PRIMARY KEY ([id_agronomo]),
-    CONSTRAINT [UQ_CDC_agronomo_rut] UNIQUE ([rut])
+CREATE TABLE [cdc].[Agronomo] (
+    [Id]     INT IDENTITY(1,1) NOT NULL,
+    [Rut]    VARCHAR(20)   NOT NULL,
+    [Nombre] NVARCHAR(100) NOT NULL,
+    [Email]  NVARCHAR(150) NULL,
+    CONSTRAINT [PK_Agronomo]     PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_Agronomo_Rut] UNIQUE ([Rut])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_especie] (
-    [id_especie]       INTEGER IDENTITY(1,1) NOT NULL,
-    [codigo_especie]   VARCHAR(20)  NOT NULL,
-    [nombre_comun]     VARCHAR(100) NOT NULL,
-    [nombre_cientifico]VARCHAR(150) NULL,
-    [estado]           BIT NOT NULL,
-    CONSTRAINT [PK_CDC_especie] PRIMARY KEY ([id_especie]),
-    CONSTRAINT [UQ_CDC_especie_codigo] UNIQUE ([codigo_especie])
+CREATE TABLE [cdc].[Especie] (
+    [Id]               INT IDENTITY(1,1) NOT NULL,
+    [CodigoEspecie]    VARCHAR(20)   NOT NULL,
+    [NombreComun]      NVARCHAR(100) NOT NULL,
+    [NombreCientifico] NVARCHAR(150) NULL,
+    [Estado]           BIT           NOT NULL CONSTRAINT [DF_Especie_Estado] DEFAULT(1),
+    CONSTRAINT [PK_Especie]               PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_Especie_CodigoEspecie] UNIQUE ([CodigoEspecie])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_variedad] (
-    [id_variedad]     INTEGER IDENTITY(1,1) NOT NULL,
-    [id_especie]      INTEGER NOT NULL,
-    [codigo_variedad] VARCHAR(20)  NOT NULL,
-    [nombre_comercial]VARCHAR(100) NOT NULL,
-    [id_grupo_variedad] VARCHAR(20) NOT NULL,
-    [grupo_variedad]  VARCHAR(100) NOT NULL,
-    [activo]          BIT NOT NULL,
-    CONSTRAINT [PK_CDC_variedad] PRIMARY KEY ([id_variedad])
+CREATE TABLE [cdc].[Variedad] (
+    [Id]              INT IDENTITY(1,1) NOT NULL,
+    [EspecieId]       INT           NOT NULL,
+    [CodigoVariedad]  VARCHAR(20)   NOT NULL,
+    [NombreComercial] NVARCHAR(100) NOT NULL,
+    [CodigoGrupo]     VARCHAR(20)   NOT NULL,
+    [GrupoVariedad]   NVARCHAR(100) NOT NULL,
+    [Activo]          BIT           NOT NULL CONSTRAINT [DF_Variedad_Activo] DEFAULT(1),
+    CONSTRAINT [PK_Variedad]                       PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_Variedad_Especie_NombreComercial] UNIQUE ([EspecieId],[NombreComercial])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_condicion_fruta] (
-    [id_condicion] INTEGER IDENTITY(1,1) NOT NULL,
-    [codigo]       VARCHAR(20) NULL,
-    [glosa]        VARCHAR(100) NULL,
-    CONSTRAINT [PK_CDC_condicion_fruta] PRIMARY KEY([id_condicion])
+CREATE TABLE [cdc].[CondicionFruta] (
+    [Id]     INT IDENTITY(1,1) NOT NULL,
+    [Codigo] VARCHAR(20)   NULL,
+    [Glosa]  NVARCHAR(100) NULL,
+    CONSTRAINT [PK_CondicionFruta] PRIMARY KEY ([Id])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_fundo] (
-    [id_fundo]   INTEGER IDENTITY(1,1) NOT NULL,
-    [id_productor] INTEGER NOT NULL,
-    [id_agronomo]  INTEGER NOT NULL,
-    [codigo_sap] VARCHAR(20) NOT NULL,
-    [codigo_sag] VARCHAR(20) NOT NULL,
-    [nombre]     VARCHAR(100) NOT NULL,
-    [region]     VARCHAR(100) NOT NULL,
-    [provincia]  VARCHAR(100) NOT NULL,
-    [comuna]     VARCHAR(100) NOT NULL,
-    [direccion]  VARCHAR(200) NULL,
-    CONSTRAINT [PK_CDC_fundo] PRIMARY KEY([id_fundo])
+CREATE TABLE [cdc].[Fundo] (
+    [Id]          INT IDENTITY(1,1) NOT NULL,
+    [ProductorId] INT           NOT NULL,
+    [AgronomoId]  INT           NOT NULL,
+    [CodigoSap]   VARCHAR(20)   NOT NULL,
+    [CodigoSag]   VARCHAR(20)   NOT NULL,
+    [Nombre]      NVARCHAR(100) NOT NULL,
+    [Region]      NVARCHAR(100) NOT NULL,
+    [Provincia]   NVARCHAR(100) NOT NULL,
+    [Comuna]      NVARCHAR(100) NOT NULL,
+    [Direccion]   NVARCHAR(200) NULL,
+    CONSTRAINT [PK_Fundo]           PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_Fundo_CodigoSap] UNIQUE ([CodigoSap])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_predio] (
-    [id_predio] INTEGER IDENTITY(1,1) NOT NULL,
-    [id_fundo]  INTEGER NOT NULL,
-    [codigo_sap] VARCHAR(20) NOT NULL,
-    [codigo_sag] VARCHAR(20) NOT NULL,
-    [superficie] FLOAT NOT NULL,
-    [georef_latitud]  DECIMAL(9,6) NULL,
-    [georef_longitud] DECIMAL(9,6) NULL,
-    [georef_fuente]   VARCHAR(20) NULL,
-    [georef_precision]INTEGER NULL,
-    [georef_fecha]    DATETIME2(0) NULL,
-    CONSTRAINT [PK_CDC_predio] PRIMARY KEY([id_predio])
+CREATE TABLE [cdc].[Predio] (
+    [Id]              INT IDENTITY(1,1) NOT NULL,
+    [FundoId]         INT           NOT NULL,
+    [CodigoSap]       VARCHAR(20)   NOT NULL,
+    [CodigoSag]       VARCHAR(20)   NOT NULL,
+    [Superficie]      DECIMAL(12,4) NOT NULL,
+    [GeorefLatitud]   DECIMAL(9,6)  NULL,
+    [GeorefLongitud]  DECIMAL(9,6)  NULL,
+    [GeorefFuente]    VARCHAR(20)   NULL,
+    [GeorefPrecision] INT           NULL,
+    [GeorefFecha]     DATETIME2(0)  NULL,
+    CONSTRAINT [PK_Predio]           PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_Predio_CodigoSap] UNIQUE ([CodigoSap])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_familia_quimico] (
-    [id_familia] INTEGER IDENTITY(1,1) NOT NULL,
-    [codigo]     VARCHAR(20) NOT NULL,
-    [glosa]      VARCHAR(100) NOT NULL,
-    CONSTRAINT [PK_CDC_familia_quimico] PRIMARY KEY([id_familia]),
-    CONSTRAINT [UQ_CDC_familia_quimico_codigo] UNIQUE([codigo])
+CREATE TABLE [cdc].[FamiliaQuimico] (
+    [Id]     INT IDENTITY(1,1) NOT NULL,
+    [Codigo] VARCHAR(20)   NOT NULL,
+    [Glosa]  NVARCHAR(100) NOT NULL,
+    CONSTRAINT [PK_FamiliaQuimico]        PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_FamiliaQuimico_Codigo] UNIQUE ([Codigo])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_ingrediente_activo] (
-    [id_ingrediente] INTEGER IDENTITY(1,1) NOT NULL,
-    [id_familia]     INTEGER NOT NULL,
-    [codigo]         VARCHAR(20)  NOT NULL,
-    [glosa]          VARCHAR(200) NOT NULL,
-    CONSTRAINT [PK_CDC_ingrediente_activo] PRIMARY KEY([id_ingrediente])
+CREATE TABLE [cdc].[IngredienteActivo] (
+    [Id]        INT IDENTITY(1,1) NOT NULL,
+    [FamiliaId] INT           NOT NULL,
+    [Codigo]    VARCHAR(20)   NOT NULL,
+    [Glosa]     NVARCHAR(200) NOT NULL,
+    CONSTRAINT [PK_IngredienteActivo]              PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_IngredienteActivo_Familia_Glosa] UNIQUE ([FamiliaId],[Glosa])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_tipo_agua] (
-    [id_tipo_agua] INTEGER IDENTITY(1,1) NOT NULL,
-    [codigo] VARCHAR(20) NOT NULL,
-    [nombre] VARCHAR(100) NOT NULL,
-    CONSTRAINT [PK_CDC_tipo_agua] PRIMARY KEY([id_tipo_agua]),
-    CONSTRAINT [UQ_CDC_tipo_agua_codigo] UNIQUE([codigo])
+CREATE TABLE [cdc].[TipoAgua] (
+    [Id]     INT IDENTITY(1,1) NOT NULL,
+    [Codigo] VARCHAR(20)   NOT NULL,
+    [Nombre] NVARCHAR(100) NOT NULL,
+    CONSTRAINT [PK_TipoAgua]        PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_TipoAgua_Codigo] UNIQUE ([Codigo])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_patogeno] (
-    [id_patogeno] INTEGER IDENTITY(1,1) NOT NULL,
-    [codigo] VARCHAR(20) NOT NULL,
-    [nombre] VARCHAR(200) NOT NULL,
-    [activo] BIT NOT NULL,
-    CONSTRAINT [PK_CDC_patogeno] PRIMARY KEY([id_patogeno]),
-    CONSTRAINT [UQ_CDC_patogeno_codigo] UNIQUE([codigo])
-);
-GO
-
-/* =========================
-   Químicos / Productos
-========================= */
-CREATE TABLE [cdc].[CDC_producto] (
-    [id_producto]    INTEGER IDENTITY(1,1) NOT NULL,
-    [codigo]         VARCHAR(50) NULL,
-    [glosa]          VARCHAR(200) NOT NULL,
-    [formulacion]    VARCHAR(50) NULL,
-    [dosis_estandar] FLOAT NULL,
-    [unidad_medida]  VARCHAR(20) NULL,
-    CONSTRAINT [PK_CDC_producto] PRIMARY KEY([id_producto]),
-    CONSTRAINT [UQ_CDC_producto_glosa] UNIQUE([glosa])
-);
-GO
-
-CREATE TABLE [cdc].[CDC_producto_especie] (
-    [id_producto_especie] BIGINT IDENTITY(1,1) NOT NULL,
-    [id_especie]  INTEGER NOT NULL,
-    [id_producto] INTEGER NOT NULL,
-    [activo]      BIT NOT NULL,
-    CONSTRAINT [PK_CDC_producto_especie] PRIMARY KEY([id_producto_especie]),
-    CONSTRAINT [UQ_CDC_producto_especie] UNIQUE([id_especie],[id_producto])
-);
-GO
-
-CREATE TABLE [cdc].[CDC_ingrediente_producto] (
-    [id_ingrediente_producto] BIGINT IDENTITY(1,1) NOT NULL,
-    [id_ingrediente] INTEGER NOT NULL,
-    [id_producto]    INTEGER NOT NULL,
-    CONSTRAINT [PK_CDC_ingrediente_producto] PRIMARY KEY([id_ingrediente_producto]),
-    CONSTRAINT [UQ_CDC_ingrediente_producto] UNIQUE([id_ingrediente],[id_producto])
+CREATE TABLE [cdc].[Patogeno] (
+    [Id]     INT IDENTITY(1,1) NOT NULL,
+    [Codigo] VARCHAR(20)   NOT NULL,
+    [Nombre] NVARCHAR(200) NOT NULL,
+    [Activo] BIT           NOT NULL CONSTRAINT [DF_Patogeno_Activo] DEFAULT(1),
+    CONSTRAINT [PK_Patogeno]        PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_Patogeno_Codigo] UNIQUE ([Codigo])
 );
 GO
 
 /* =========================
-   Campo (Cuadros / Aplicaciones)
+   Productos / Quimicos
 ========================= */
-CREATE TABLE [cdc].[CDC_cuadro] (
-    [id_cuadro] INTEGER IDENTITY(1,1) NOT NULL,
-    [id_temporada]  INTEGER NOT NULL,
-    [id_predio]     INTEGER NOT NULL,
-    [id_tipo_agua]  INTEGER NOT NULL,
-    [id_variedad]   INTEGER NOT NULL,
-    [id_condicion]  INTEGER NOT NULL,
-    [nombre]        VARCHAR(100) NOT NULL,
-    [estado]        TINYINT NOT NULL,
-    [superficie]    FLOAT NULL,
-    [observaciones] VARCHAR(300) NULL,
-    [fecha_estimada_cosecha] DATETIME2(0) NOT NULL,
-    CONSTRAINT [PK_CDC_Cuadro] PRIMARY KEY([id_cuadro])
+CREATE TABLE [cdc].[Producto] (
+    [Id]            INT IDENTITY(1,1) NOT NULL,
+    [Codigo]        VARCHAR(50)   NULL,
+    [Glosa]         NVARCHAR(200) NOT NULL,
+    [Formulacion]   NVARCHAR(50)  NULL,
+    [DosisEstandar] DECIMAL(12,4) NULL,
+    [UnidadMedida]  NVARCHAR(20)  NULL,
+    CONSTRAINT [PK_Producto]       PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_Producto_Glosa] UNIQUE ([Glosa])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_aplicacion] (
-    [id_aplicacion] BIGINT IDENTITY(1,1) NOT NULL,
-    [id_temporada]  INTEGER NOT NULL,
-    [id_cuadro]     INTEGER NOT NULL,
-    [id_tipo_agua]  INTEGER NOT NULL,
-    [id_exportador] INTEGER NOT NULL,
-    [id_patogeno]   INTEGER NOT NULL,
-    [id_producto]   INTEGER NOT NULL,
-    [fecha_aplicacion] DATETIME2(0) NOT NULL,
-    [dosis_aplicada] FLOAT NOT NULL,
-    [observaciones] VARCHAR(500) NOT NULL,
-    CONSTRAINT [PK_CDC_aplicacion] PRIMARY KEY([id_aplicacion])
+CREATE TABLE [cdc].[ProductoEspecie] (
+    [Id]         BIGINT IDENTITY(1,1) NOT NULL,
+    [EspecieId]  INT NOT NULL,
+    [ProductoId] INT NOT NULL,
+    [Activo]     BIT NOT NULL CONSTRAINT [DF_ProductoEspecie_Activo] DEFAULT(1),
+    CONSTRAINT [PK_ProductoEspecie]                     PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_ProductoEspecie_Especie_Producto]    UNIQUE ([EspecieId],[ProductoId])
+);
+GO
+
+CREATE TABLE [cdc].[IngredienteProducto] (
+    [Id]            BIGINT IDENTITY(1,1) NOT NULL,
+    [IngredienteId] INT NOT NULL,
+    [ProductoId]    INT NOT NULL,
+    CONSTRAINT [PK_IngredienteProducto]                       PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_IngredienteProducto_Ingrediente_Producto]  UNIQUE ([IngredienteId],[ProductoId])
+);
+GO
+
+/* =========================
+   Operacion (Cuadros / Aplicaciones)
+========================= */
+CREATE TABLE [cdc].[Cuadro] (
+    [Id]                   INT IDENTITY(1,1) NOT NULL,
+    [TemporadaId]          INT           NOT NULL,
+    [PredioId]             INT           NOT NULL,
+    [TipoAguaId]           INT           NOT NULL,
+    [VariedadId]           INT           NOT NULL,
+    [CondicionId]          INT           NOT NULL,
+    [Nombre]               NVARCHAR(100) NOT NULL,
+    [Estado]               TINYINT       NOT NULL,
+    [Superficie]           DECIMAL(12,4) NULL,
+    [Observaciones]        NVARCHAR(300) NULL,
+    [FechaEstimadaCosecha] DATETIME2(0)  NOT NULL,
+    CONSTRAINT [PK_Cuadro] PRIMARY KEY ([Id])
+);
+GO
+
+CREATE TABLE [cdc].[Aplicacion] (
+    [Id]              BIGINT IDENTITY(1,1) NOT NULL,
+    [TemporadaId]     INT           NOT NULL,
+    [CuadroId]        INT           NOT NULL,
+    [TipoAguaId]      INT           NOT NULL,
+    [ExportadorId]    INT           NOT NULL,
+    [PatogenoId]      INT           NOT NULL,
+    [ProductoId]      INT           NOT NULL,
+    [FechaAplicacion] DATETIME2(0)  NOT NULL,
+    [DosisAplicada]   DECIMAL(12,4) NOT NULL,
+    [Observaciones]   NVARCHAR(500) NULL,
+    CONSTRAINT [PK_Aplicacion] PRIMARY KEY ([Id])
 );
 GO
 
 /* =========================
    Mercado / Reglas
 ========================= */
-CREATE TABLE [cdc].[CDC_mercado] (
-    [id_mercado] INTEGER IDENTITY(1,1) NOT NULL,
-    [nombre] VARCHAR(100) NOT NULL,
-    [activo] BIT NOT NULL,
-    CONSTRAINT [PK_CDC_mercado] PRIMARY KEY([id_mercado]),
-    CONSTRAINT [UQ_CDC_mercado_nombre] UNIQUE([nombre])
+CREATE TABLE [cdc].[Mercado] (
+    [Id]     INT IDENTITY(1,1) NOT NULL,
+    [Nombre] NVARCHAR(100) NOT NULL,
+    [Activo] BIT           NOT NULL CONSTRAINT [DF_Mercado_Activo] DEFAULT(1),
+    CONSTRAINT [PK_Mercado]        PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_Mercado_Nombre] UNIQUE ([Nombre])
 );
 GO
 
-CREATE TABLE [cdc].[CDC_regla] (
-    [id_regla] INTEGER IDENTITY(1,1) NOT NULL,
-    [id_producto_especie] BIGINT NOT NULL,
-    [id_mercado] INTEGER NOT NULL,
-    [ppm] VARCHAR(20) NOT NULL,        -- soporta ST/EX además de valores numéricos
-    [dias] INTEGER NOT NULL,
-    [activo] BIT NOT NULL,
-    [unidad] VARCHAR(20) NOT NULL CONSTRAINT DF_CDC_regla_unidad DEFAULT('ppm'),
-    [vigencia_desde] DATETIME2(0) NOT NULL CONSTRAINT DF_CDC_regla_vig DEFAULT(SYSUTCDATETIME()),
-    [vigencia_hasta] DATETIME2(0) NULL,
-    [fuente] VARCHAR(100) NULL,
-    [fecha_fuente] DATETIME2(0) NULL,
-    CONSTRAINT [PK_CDC_regla] PRIMARY KEY([id_regla])
+CREATE TABLE [cdc].[Regla] (
+    [Id]                INT IDENTITY(1,1) NOT NULL,
+    [ProductoEspecieId] BIGINT        NOT NULL,
+    [MercadoId]         INT           NOT NULL,
+    [Ppm]               VARCHAR(20)   NOT NULL,        -- soporta ST/EX y valores numericos
+    [Dias]              INT           NOT NULL,
+    [Activo]            BIT           NOT NULL CONSTRAINT [DF_Regla_Activo]        DEFAULT(1),
+    [Unidad]            VARCHAR(20)   NOT NULL CONSTRAINT [DF_Regla_Unidad]        DEFAULT('ppm'),
+    [VigenciaDesde]     DATETIME2(0)  NOT NULL CONSTRAINT [DF_Regla_VigenciaDesde] DEFAULT(SYSUTCDATETIME()),
+    [VigenciaHasta]     DATETIME2(0)  NULL,
+    [Fuente]            NVARCHAR(100) NULL,
+    [FechaFuente]       DATETIME2(0)  NULL,
+    CONSTRAINT [PK_Regla] PRIMARY KEY ([Id])
 );
 GO
 
 /* =========================
-   Ajustes incrementalmente idempotentes
+   FOREIGN KEYS
 ========================= */
-IF COL_LENGTH('cdc.CDC_cuadro', 'superficie') IS NULL
-BEGIN
-    ALTER TABLE [cdc].[CDC_cuadro]
-    ADD [superficie] FLOAT NULL;
-END
+ALTER TABLE [cdc].[Auditoria]
+    ADD CONSTRAINT [FK_Auditoria_Usuario]
+    FOREIGN KEY ([UsuarioId]) REFERENCES [cdc].[Usuario]([Id]);
+GO
+
+ALTER TABLE [cdc].[Variedad]
+    ADD CONSTRAINT [FK_Variedad_Especie]
+    FOREIGN KEY ([EspecieId]) REFERENCES [cdc].[Especie]([Id]);
+GO
+
+ALTER TABLE [cdc].[Fundo]
+    ADD CONSTRAINT [FK_Fundo_Productor]
+    FOREIGN KEY ([ProductorId]) REFERENCES [cdc].[Productor]([Id]);
+GO
+ALTER TABLE [cdc].[Fundo]
+    ADD CONSTRAINT [FK_Fundo_Agronomo]
+    FOREIGN KEY ([AgronomoId]) REFERENCES [cdc].[Agronomo]([Id]);
+GO
+
+ALTER TABLE [cdc].[Predio]
+    ADD CONSTRAINT [FK_Predio_Fundo]
+    FOREIGN KEY ([FundoId]) REFERENCES [cdc].[Fundo]([Id]);
+GO
+
+ALTER TABLE [cdc].[IngredienteActivo]
+    ADD CONSTRAINT [FK_IngredienteActivo_FamiliaQuimico]
+    FOREIGN KEY ([FamiliaId]) REFERENCES [cdc].[FamiliaQuimico]([Id]);
+GO
+
+ALTER TABLE [cdc].[IngredienteProducto]
+    ADD CONSTRAINT [FK_IngredienteProducto_IngredienteActivo]
+    FOREIGN KEY ([IngredienteId]) REFERENCES [cdc].[IngredienteActivo]([Id]);
+GO
+ALTER TABLE [cdc].[IngredienteProducto]
+    ADD CONSTRAINT [FK_IngredienteProducto_Producto]
+    FOREIGN KEY ([ProductoId]) REFERENCES [cdc].[Producto]([Id]);
+GO
+
+ALTER TABLE [cdc].[ProductoEspecie]
+    ADD CONSTRAINT [FK_ProductoEspecie_Especie]
+    FOREIGN KEY ([EspecieId]) REFERENCES [cdc].[Especie]([Id]);
+GO
+ALTER TABLE [cdc].[ProductoEspecie]
+    ADD CONSTRAINT [FK_ProductoEspecie_Producto]
+    FOREIGN KEY ([ProductoId]) REFERENCES [cdc].[Producto]([Id]);
+GO
+
+ALTER TABLE [cdc].[Cuadro]
+    ADD CONSTRAINT [FK_Cuadro_Temporada]
+    FOREIGN KEY ([TemporadaId]) REFERENCES [cdc].[Temporada]([Id]);
+GO
+ALTER TABLE [cdc].[Cuadro]
+    ADD CONSTRAINT [FK_Cuadro_Predio]
+    FOREIGN KEY ([PredioId]) REFERENCES [cdc].[Predio]([Id]);
+GO
+ALTER TABLE [cdc].[Cuadro]
+    ADD CONSTRAINT [FK_Cuadro_TipoAgua]
+    FOREIGN KEY ([TipoAguaId]) REFERENCES [cdc].[TipoAgua]([Id]);
+GO
+ALTER TABLE [cdc].[Cuadro]
+    ADD CONSTRAINT [FK_Cuadro_Variedad]
+    FOREIGN KEY ([VariedadId]) REFERENCES [cdc].[Variedad]([Id]);
+GO
+ALTER TABLE [cdc].[Cuadro]
+    ADD CONSTRAINT [FK_Cuadro_CondicionFruta]
+    FOREIGN KEY ([CondicionId]) REFERENCES [cdc].[CondicionFruta]([Id]);
+GO
+
+ALTER TABLE [cdc].[Aplicacion]
+    ADD CONSTRAINT [FK_Aplicacion_Temporada]
+    FOREIGN KEY ([TemporadaId]) REFERENCES [cdc].[Temporada]([Id]);
+GO
+ALTER TABLE [cdc].[Aplicacion]
+    ADD CONSTRAINT [FK_Aplicacion_Cuadro]
+    FOREIGN KEY ([CuadroId]) REFERENCES [cdc].[Cuadro]([Id]);
+GO
+ALTER TABLE [cdc].[Aplicacion]
+    ADD CONSTRAINT [FK_Aplicacion_TipoAgua]
+    FOREIGN KEY ([TipoAguaId]) REFERENCES [cdc].[TipoAgua]([Id]);
+GO
+ALTER TABLE [cdc].[Aplicacion]
+    ADD CONSTRAINT [FK_Aplicacion_Exportador]
+    FOREIGN KEY ([ExportadorId]) REFERENCES [cdc].[Exportador]([Id]);
+GO
+ALTER TABLE [cdc].[Aplicacion]
+    ADD CONSTRAINT [FK_Aplicacion_Patogeno]
+    FOREIGN KEY ([PatogenoId]) REFERENCES [cdc].[Patogeno]([Id]);
+GO
+ALTER TABLE [cdc].[Aplicacion]
+    ADD CONSTRAINT [FK_Aplicacion_Producto]
+    FOREIGN KEY ([ProductoId]) REFERENCES [cdc].[Producto]([Id]);
+GO
+
+ALTER TABLE [cdc].[Regla]
+    ADD CONSTRAINT [FK_Regla_ProductoEspecie]
+    FOREIGN KEY ([ProductoEspecieId]) REFERENCES [cdc].[ProductoEspecie]([Id]);
+GO
+ALTER TABLE [cdc].[Regla]
+    ADD CONSTRAINT [FK_Regla_Mercado]
+    FOREIGN KEY ([MercadoId]) REFERENCES [cdc].[Mercado]([Id]);
 GO
 
 /* =========================
-   FOREIGN KEYS (corregidas)
+   Indices no clustered en FKs frecuentes
 ========================= */
-ALTER TABLE [cdc].[CDC_variedad]
-ADD CONSTRAINT [FK_CDC_variedad_especie]
-FOREIGN KEY([id_especie]) REFERENCES [cdc].[CDC_especie]([id_especie]);
-GO
-
-ALTER TABLE [cdc].[CDC_fundo]
-ADD CONSTRAINT [FK_CDC_fundo_productor]
-FOREIGN KEY([id_productor]) REFERENCES [cdc].[CDC_productor]([id_productor]);
-GO
-
-ALTER TABLE [cdc].[CDC_fundo]
-ADD CONSTRAINT [FK_CDC_fundo_agronomo]
-FOREIGN KEY([id_agronomo]) REFERENCES [cdc].[CDC_agronomo]([id_agronomo]);
-GO
-
-ALTER TABLE [cdc].[CDC_predio]
-ADD CONSTRAINT [FK_CDC_predio_fundo]
-FOREIGN KEY([id_fundo]) REFERENCES [cdc].[CDC_fundo]([id_fundo]);
-GO
-
-ALTER TABLE [cdc].[CDC_ingrediente_activo]
-ADD CONSTRAINT [FK_CDC_ingrediente_activo_familia]
-FOREIGN KEY([id_familia]) REFERENCES [cdc].[CDC_familia_quimico]([id_familia]);
-GO
-
-ALTER TABLE [cdc].[CDC_ingrediente_producto]
-ADD CONSTRAINT [FK_CDC_ingrediente_producto_ingrediente]
-FOREIGN KEY([id_ingrediente]) REFERENCES [cdc].[CDC_ingrediente_activo]([id_ingrediente]);
-GO
-
-ALTER TABLE [cdc].[CDC_ingrediente_producto]
-ADD CONSTRAINT [FK_CDC_ingrediente_producto_producto]
-FOREIGN KEY([id_producto]) REFERENCES [cdc].[CDC_producto]([id_producto]);
-GO
-
-ALTER TABLE [cdc].[CDC_producto_especie]
-ADD CONSTRAINT [FK_CDC_producto_especie_especie]
-FOREIGN KEY([id_especie]) REFERENCES [cdc].[CDC_especie]([id_especie]);
-GO
-
-ALTER TABLE [cdc].[CDC_producto_especie]
-ADD CONSTRAINT [FK_CDC_producto_especie_producto]
-FOREIGN KEY([id_producto]) REFERENCES [cdc].[CDC_producto]([id_producto]);
-GO
-
-ALTER TABLE [cdc].[CDC_cuadro]
-ADD CONSTRAINT [FK_CDC_cuadro_temporada]
-FOREIGN KEY([id_temporada]) REFERENCES [cdc].[CDC_temporada]([id_temporada]);
-GO
-ALTER TABLE [cdc].[CDC_cuadro]
-ADD CONSTRAINT [FK_CDC_cuadro_predio]
-FOREIGN KEY([id_predio]) REFERENCES [cdc].[CDC_predio]([id_predio]);
-GO
-ALTER TABLE [cdc].[CDC_cuadro]
-ADD CONSTRAINT [FK_CDC_cuadro_tipo_agua]
-FOREIGN KEY([id_tipo_agua]) REFERENCES [cdc].[CDC_tipo_agua]([id_tipo_agua]);
-GO
-ALTER TABLE [cdc].[CDC_cuadro]
-ADD CONSTRAINT [FK_CDC_cuadro_variedad]
-FOREIGN KEY([id_variedad]) REFERENCES [cdc].[CDC_variedad]([id_variedad]);
-GO
-ALTER TABLE [cdc].[CDC_cuadro]
-ADD CONSTRAINT [FK_CDC_cuadro_condicion]
-FOREIGN KEY([id_condicion]) REFERENCES [cdc].[CDC_condicion_fruta]([id_condicion]);
-GO
-
-ALTER TABLE [cdc].[CDC_aplicacion]
-ADD CONSTRAINT [FK_CDC_aplicacion_temporada]
-FOREIGN KEY([id_temporada]) REFERENCES [cdc].[CDC_temporada]([id_temporada]);
-GO
-ALTER TABLE [cdc].[CDC_aplicacion]
-ADD CONSTRAINT [FK_CDC_aplicacion_cuadro]
-FOREIGN KEY([id_cuadro]) REFERENCES [cdc].[CDC_Cuadro]([id_cuadro]);
-GO
-ALTER TABLE [cdc].[CDC_aplicacion]
-ADD CONSTRAINT [FK_CDC_aplicacion_tipo_agua]
-FOREIGN KEY([id_tipo_agua]) REFERENCES [cdc].[CDC_tipo_agua]([id_tipo_agua]);
-GO
-ALTER TABLE [cdc].[CDC_aplicacion]
-ADD CONSTRAINT [FK_CDC_aplicacion_exportador]
-FOREIGN KEY([id_exportador]) REFERENCES [cdc].[CDC_exportador]([id_exportador]);
-GO
-ALTER TABLE [cdc].[CDC_aplicacion]
-ADD CONSTRAINT [FK_CDC_aplicacion_patogeno]
-FOREIGN KEY([id_patogeno]) REFERENCES [cdc].[CDC_patogeno]([id_patogeno]);
-GO
-ALTER TABLE [cdc].[CDC_aplicacion]
-ADD CONSTRAINT [FK_CDC_aplicacion_producto]
-FOREIGN KEY([id_producto]) REFERENCES [cdc].[CDC_producto]([id_producto]);
-GO
-
-ALTER TABLE [cdc].[CDC_regla]
-ADD CONSTRAINT [FK_CDC_regla_producto_especie]
-FOREIGN KEY([id_producto_especie]) REFERENCES [cdc].[CDC_producto_especie]([id_producto_especie]);
-GO
-ALTER TABLE [cdc].[CDC_regla]
-ADD CONSTRAINT [FK_CDC_regla_mercado]
-FOREIGN KEY([id_mercado]) REFERENCES [cdc].[CDC_mercado]([id_mercado]);
+CREATE INDEX [IX_Variedad_EspecieId]              ON [cdc].[Variedad]([EspecieId]);
+CREATE INDEX [IX_Predio_FundoId]                  ON [cdc].[Predio]([FundoId]);
+CREATE INDEX [IX_Fundo_ProductorId]               ON [cdc].[Fundo]([ProductorId]);
+CREATE INDEX [IX_Fundo_AgronomoId]                ON [cdc].[Fundo]([AgronomoId]);
+CREATE INDEX [IX_IngredienteActivo_FamiliaId]     ON [cdc].[IngredienteActivo]([FamiliaId]);
+CREATE INDEX [IX_IngredienteProducto_ProductoId]  ON [cdc].[IngredienteProducto]([ProductoId]);
+CREATE INDEX [IX_ProductoEspecie_ProductoId]      ON [cdc].[ProductoEspecie]([ProductoId]);
+CREATE INDEX [IX_Cuadro_PredioId]                 ON [cdc].[Cuadro]([PredioId]);
+CREATE INDEX [IX_Cuadro_TemporadaId]              ON [cdc].[Cuadro]([TemporadaId]);
+CREATE INDEX [IX_Cuadro_VariedadId]               ON [cdc].[Cuadro]([VariedadId]);
+CREATE INDEX [IX_Aplicacion_CuadroId]             ON [cdc].[Aplicacion]([CuadroId]);
+CREATE INDEX [IX_Aplicacion_ProductoId]           ON [cdc].[Aplicacion]([ProductoId]);
+CREATE INDEX [IX_Aplicacion_TemporadaId]          ON [cdc].[Aplicacion]([TemporadaId]);
+CREATE INDEX [IX_Regla_MercadoId]                 ON [cdc].[Regla]([MercadoId]);
+CREATE INDEX [IX_Regla_ProductoEspecieId]         ON [cdc].[Regla]([ProductoEspecieId]);
 GO

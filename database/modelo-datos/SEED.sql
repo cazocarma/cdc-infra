@@ -5,9 +5,9 @@ GO
 /* =============================================================================
    SEED CDC (último) - Químicos / Ingredientes / Reglas desde Excel
    Fuente: ASOEX (8) 22-12-2025.xlsx
-   - CDC_producto: se inserta por formulación (texto original). unidad_medida = NULL.
+   - CDC_producto: se inserta por formulación (texto original). UnidadMedida = NULL.
    - Composición: CDC_ingrediente_producto (N:N) (split por '+' y '/')
-   - CDC_regla: ppm como texto (ST/EX) + vigencia_desde='2025-12-22 00:00:00'
+   - CDC_regla: Ppm como texto (ST/EX) + VigenciaDesde='2025-12-22 00:00:00'
    - Incluye temporada 2025-2026, especies (pestañas), 3-5 variedades por especie,
      mercados, familias (tipo producto), tipos de agua y patógenos.
 ============================================================================= */
@@ -18,16 +18,16 @@ GO
 BEGIN TRAN;
 GO
 
-MERGE cdc.CDC_temporada AS T
+MERGE cdc.Temporada AS T
 USING (VALUES ('2025-2026','Temporada 2025-2026','2025-07-01 00:00:00','2026-06-30 00:00:00',CAST(1 AS bit)))
-     AS S(codigo,nombre,fecha_inicio,fecha_fin,activa)
-ON T.codigo = S.codigo
+     AS S(Codigo,Nombre,FechaInicio,FechaFin,Activa)
+ON T.Codigo = S.Codigo
 WHEN NOT MATCHED THEN
-  INSERT (codigo,nombre,fecha_inicio,fecha_fin,activa)
-  VALUES (S.codigo,S.nombre,S.fecha_inicio,S.fecha_fin,S.activa);
+  INSERT (Codigo,Nombre,FechaInicio,FechaFin,Activa)
+  VALUES (S.Codigo,S.Nombre,S.FechaInicio,S.FechaFin,S.Activa);
 GO
 
-MERGE cdc.CDC_tipo_agua AS T
+MERGE cdc.TipoAgua AS T
 USING (VALUES
 
   ('6','RIO'),
@@ -54,12 +54,12 @@ USING (VALUES
   ('10','NO APLICA'),
   ('15','CANAL APALTA'),
   ('24','AGUA CANAL CLORADA')
-) AS S(codigo,nombre)
-ON T.codigo=S.codigo
-WHEN NOT MATCHED THEN INSERT (codigo,nombre) VALUES (S.codigo,S.nombre);
+) AS S(Codigo,Nombre)
+ON T.Codigo=S.Codigo
+WHEN NOT MATCHED THEN INSERT (Codigo,Nombre) VALUES (S.Codigo,S.Nombre);
 GO
 
-MERGE cdc.CDC_patogeno AS T
+MERGE cdc.Patogeno AS T
 USING (VALUES
 
   ('24','ESCAMA-CHANCHITOS-POLILLA-PULGON-TRIPS',CAST(1 AS bit)),
@@ -120,12 +120,12 @@ USING (VALUES
   ('54','TIZON BACTERIANO',CAST(1 AS bit)),
   ('57','HORMIGA-CABRITO',CAST(1 AS bit)),
   ('58','ANTIHELADA',CAST(1 AS bit))
-) AS S(codigo,nombre,activo)
-ON T.codigo=S.codigo
-WHEN NOT MATCHED THEN INSERT (codigo,nombre,activo) VALUES (S.codigo,S.nombre,S.activo);
+) AS S(Codigo,Nombre,Activo)
+ON T.Codigo=S.Codigo
+WHEN NOT MATCHED THEN INSERT (Codigo,Nombre,Activo) VALUES (S.Codigo,S.Nombre,S.Activo);
 GO
 
-MERGE cdc.CDC_familia_quimico AS T
+MERGE cdc.FamiliaQuimico AS T
 USING (VALUES
 
   ('ACA','Acaricida'),
@@ -135,12 +135,12 @@ USING (VALUES
   ('INS','Insecticida'),
   ('NEM','Nematicida'),
   ('PO','Postcosecha')
-) AS S(codigo,glosa)
-ON T.codigo=S.codigo
-WHEN NOT MATCHED THEN INSERT (codigo,glosa) VALUES (S.codigo,S.glosa);
+) AS S(Codigo,Glosa)
+ON T.Codigo=S.Codigo
+WHEN NOT MATCHED THEN INSERT (Codigo,Glosa) VALUES (S.Codigo,S.Glosa);
 GO
 
-MERGE cdc.CDC_mercado AS T
+MERGE cdc.Mercado AS T
 USING (VALUES
 
   ('ARABIA SAUDITA',CAST(1 AS bit)),
@@ -176,12 +176,12 @@ USING (VALUES
   ('UK',CAST(1 AS bit)),
   ('USA',CAST(1 AS bit)),
   ('VIETNAM',CAST(1 AS bit))
-) AS S(nombre,activo)
-ON T.nombre=S.nombre
-WHEN NOT MATCHED THEN INSERT (nombre,activo) VALUES (S.nombre,S.activo);
+) AS S(Nombre,Activo)
+ON T.Nombre=S.Nombre
+WHEN NOT MATCHED THEN INSERT (Nombre,Activo) VALUES (S.Nombre,S.Activo);
 GO
 
-MERGE cdc.CDC_especie AS T
+MERGE cdc.Especie AS T
 USING (VALUES
 
   ('ALM','Almendras','Prunus dulcis',CAST(1 AS bit)),
@@ -198,18 +198,18 @@ USING (VALUES
   ('PER','Peras','Pyrus communis',CAST(1 AS bit)),
   ('UVM','Uva de Mesas','Vitis vinifera',CAST(1 AS bit)),
   ('UVV','Uva Vinifera','Vitis vinifera',CAST(1 AS bit))
-) AS S(codigo_especie,nombre_comun,nombre_cientifico,estado)
-ON T.codigo_especie=S.codigo_especie
-WHEN NOT MATCHED THEN INSERT (codigo_especie,nombre_comun,nombre_cientifico,estado) VALUES (S.codigo_especie,S.nombre_comun,S.nombre_cientifico,S.estado);
+) AS S(CodigoEspecie,NombreComun,NombreCientifico,Estado)
+ON T.CodigoEspecie=S.CodigoEspecie
+WHEN NOT MATCHED THEN INSERT (CodigoEspecie,NombreComun,NombreCientifico,Estado) VALUES (S.CodigoEspecie,S.NombreComun,S.NombreCientifico,S.Estado);
 GO
 
 ;WITH src AS (
-  SELECT e.id_especie,
-         codigo_variedad = LEFT(REPLACE(REPLACE(REPLACE(UPPER(v.nombre_comercial),' ',''),'-',''),'Ñ','N'),20),
-         v.nombre_comercial,
-         'GEN' AS id_grupo_variedad,
-         'GENERAL' AS grupo_variedad,
-         CAST(1 AS bit) AS activo
+  SELECT e.Id AS EspecieId,
+         CodigoVariedad = LEFT(REPLACE(REPLACE(REPLACE(UPPER(v.NombreComercial),' ',''),'-',''),'Ñ','N'),20),
+         v.NombreComercial,
+         'GEN' AS CodigoGrupo,
+         'GENERAL' AS GrupoVariedad,
+         CAST(1 AS bit) AS Activo
   FROM (VALUES
 
   ('ALM','Nonpareil'),
@@ -282,19 +282,19 @@ GO
   ('UVV','Merlot'),
   ('UVV','Sauvignon Blanc'),
   ('UVV','Chardonnay')
-) v(codigo_especie,nombre_comercial)
-  INNER JOIN cdc.CDC_especie e ON e.codigo_especie=v.codigo_especie
+) v(CodigoEspecie,NombreComercial)
+  INNER JOIN cdc.Especie e ON e.CodigoEspecie=v.CodigoEspecie
 )
-MERGE cdc.CDC_variedad AS T
+MERGE cdc.Variedad AS T
 USING src AS S
-ON T.id_especie=S.id_especie AND T.nombre_comercial=S.nombre_comercial
+ON T.EspecieId=S.EspecieId AND T.NombreComercial=S.NombreComercial
 WHEN NOT MATCHED THEN
-  INSERT (id_especie,codigo_variedad,nombre_comercial,id_grupo_variedad,grupo_variedad,activo)
-  VALUES (S.id_especie,S.codigo_variedad,S.nombre_comercial,S.id_grupo_variedad,S.grupo_variedad,S.activo);
+  INSERT (EspecieId,CodigoVariedad,NombreComercial,CodigoGrupo,GrupoVariedad,Activo)
+  VALUES (S.EspecieId,S.CodigoVariedad,S.NombreComercial,S.CodigoGrupo,S.GrupoVariedad,S.Activo);
 GO
 
 ;WITH src AS (
-  SELECT f.id_familia, v.codigo, v.glosa
+  SELECT f.Id AS FamiliaId, v.Codigo, v.Glosa
   FROM (VALUES
 
   ('ACA','ABAMECTIN','ABAMECTIN'),
@@ -550,20 +550,20 @@ GO
   ('PO','PYRIMETHANIL','PYRIMETHANIL'),
   ('PO','TEBUCONAZOLE','TEBUCONAZOLE'),
   ('PO','THIABENDAZOLE','THIABENDAZOLE')
-) v(familia_codigo,codigo,glosa)
-  INNER JOIN cdc.CDC_familia_quimico f ON f.codigo=v.familia_codigo
+) v(FamiliaCodigo,Codigo,Glosa)
+  INNER JOIN cdc.FamiliaQuimico f ON f.Codigo=v.FamiliaCodigo
 )
-INSERT INTO cdc.CDC_ingrediente_activo (id_familia,codigo,glosa)
-SELECT s.id_familia, s.codigo, s.glosa
+INSERT INTO cdc.IngredienteActivo (FamiliaId,Codigo,Glosa)
+SELECT s.FamiliaId, s.Codigo, s.Glosa
 FROM src s
 WHERE NOT EXISTS (
-  SELECT 1 FROM cdc.CDC_ingrediente_activo i
-  WHERE i.id_familia=s.id_familia AND i.glosa=s.glosa
+  SELECT 1 FROM cdc.IngredienteActivo i
+  WHERE i.FamiliaId=s.FamiliaId AND i.Glosa=s.Glosa
 );
 GO
 
-INSERT INTO cdc.CDC_producto (codigo,glosa,formulacion,dosis_estandar,unidad_medida)
-SELECT NULL, v.glosa, v.formulacion, NULL, NULL
+INSERT INTO cdc.Producto (Codigo,Glosa,Formulacion,DosisEstandar,UnidadMedida)
+SELECT NULL, v.Glosa, v.Formulacion, NULL, NULL
 FROM (VALUES
 
   ('+ ALLYL ISOTHIOCYANATE/+ CAPSAICIN (Capsicum frutescens)','MEZCLA'),
@@ -851,12 +851,12 @@ FROM (VALUES
   ('TRIFORINE',NULL),
   ('UNICONAZOLE-P',NULL),
   ('ZIRAM',NULL)
-) v(glosa,formulacion)
-WHERE NOT EXISTS (SELECT 1 FROM cdc.CDC_producto p WHERE p.glosa=v.glosa);
+) v(Glosa,Formulacion)
+WHERE NOT EXISTS (SELECT 1 FROM cdc.Producto p WHERE p.Glosa=v.Glosa);
 GO
 
 ;WITH src AS (
-  SELECT p.id_producto, i.id_ingrediente
+  SELECT p.Id AS ProductoId, i.Id AS IngredienteId
   FROM (VALUES
 
   ('+ CITRONELLOL/+ GERANIOL','ACA','CITRONELLOL'),
@@ -1243,22 +1243,22 @@ GO
   ('ACEPHATE','INS','ACEPHATE'),
   ('CYCLOBUTRIFLURAM','NEM','CYCLOBUTRIFLURAM'),
   ('CARBENDAZIM','FUN','CARBENDAZIM')
-) v(producto_glosa,familia_codigo,ingrediente_glosa)
-  INNER JOIN cdc.CDC_producto p ON p.glosa=v.producto_glosa
-  INNER JOIN cdc.CDC_familia_quimico f ON f.codigo=v.familia_codigo
-  INNER JOIN cdc.CDC_ingrediente_activo i ON i.id_familia=f.id_familia AND i.glosa=v.ingrediente_glosa
+) v(ProductoGlosa,FamiliaCodigo,IngredienteGlosa)
+  INNER JOIN cdc.Producto p ON p.Glosa=v.ProductoGlosa
+  INNER JOIN cdc.FamiliaQuimico f ON f.Codigo=v.FamiliaCodigo
+  INNER JOIN cdc.IngredienteActivo i ON i.FamiliaId=f.Id AND i.Glosa=v.IngredienteGlosa
 )
-INSERT INTO cdc.CDC_ingrediente_producto (id_ingrediente,id_producto)
-SELECT s.id_ingrediente, s.id_producto
+INSERT INTO cdc.IngredienteProducto (IngredienteId,ProductoId)
+SELECT s.IngredienteId, s.ProductoId
 FROM src s
 WHERE NOT EXISTS (
-  SELECT 1 FROM cdc.CDC_ingrediente_producto ip
-  WHERE ip.id_ingrediente=s.id_ingrediente AND ip.id_producto=s.id_producto
+  SELECT 1 FROM cdc.IngredienteProducto ip
+  WHERE ip.IngredienteId=s.IngredienteId AND ip.ProductoId=s.ProductoId
 );
 GO
 
 ;WITH src AS (
-  SELECT e.id_especie, p.id_producto
+  SELECT e.Id AS EspecieId, p.Id AS ProductoId
   FROM (VALUES
 
   ('ALM','+ CALCIUM POLYSULFID (LIME SULPHUR)'),
@@ -3361,16 +3361,16 @@ GO
   ('UVM','TRIFLUMIZOLE'),
   ('UVM','TRIFLURALIN'),
   ('UVM','TRIFORINE')
-) v(codigo_especie,producto_glosa)
-  INNER JOIN cdc.CDC_especie e ON e.codigo_especie=v.codigo_especie
-  INNER JOIN cdc.CDC_producto p ON p.glosa=v.producto_glosa
+) v(CodigoEspecie,ProductoGlosa)
+  INNER JOIN cdc.Especie e ON e.CodigoEspecie=v.CodigoEspecie
+  INNER JOIN cdc.Producto p ON p.Glosa=v.ProductoGlosa
 )
-INSERT INTO cdc.CDC_producto_especie (id_especie,id_producto,activo)
-SELECT s.id_especie, s.id_producto, CAST(1 AS bit)
+INSERT INTO cdc.ProductoEspecie (EspecieId,ProductoId,Activo)
+SELECT s.EspecieId, s.ProductoId, CAST(1 AS bit)
 FROM src s
 WHERE NOT EXISTS (
-  SELECT 1 FROM cdc.CDC_producto_especie pe
-  WHERE pe.id_especie=s.id_especie AND pe.id_producto=s.id_producto
+  SELECT 1 FROM cdc.ProductoEspecie pe
+  WHERE pe.EspecieId=s.EspecieId AND pe.ProductoId=s.ProductoId
 );
 GO
 
@@ -3378,7 +3378,7 @@ GO
 
 -- Lote 1
 ;WITH src AS (
-  SELECT e.id_especie, p.id_producto, m.id_mercado, v.ppm, v.dias
+  SELECT e.Id AS EspecieId, p.Id AS ProductoId, m.Id AS MercadoId, v.Ppm, v.Dias
   FROM (VALUES
 
   ('ALM','ABAMECTIN','ARGENTINA','0.01',18),
@@ -4381,30 +4381,30 @@ GO
   ('CER','ACETAMIPRID','MEXICO','1.5',3),
   ('CER','ACETAMIPRID','RUSIA','1.5',3),
   ('CER','ACETAMIPRID','SINGAPUR','1.5',3)
-) v(codigo_especie,producto_glosa,mercado,ppm,dias)
-  INNER JOIN cdc.CDC_especie e ON e.codigo_especie=v.codigo_especie
-  INNER JOIN cdc.CDC_producto p ON p.glosa=v.producto_glosa
-  INNER JOIN cdc.CDC_mercado m ON m.nombre=v.mercado
+) v(CodigoEspecie,ProductoGlosa,Mercado,Ppm,Dias)
+  INNER JOIN cdc.Especie e ON e.CodigoEspecie=v.CodigoEspecie
+  INNER JOIN cdc.Producto p ON p.Glosa=v.ProductoGlosa
+  INNER JOIN cdc.Mercado m ON m.Nombre=v.Mercado
 )
-INSERT INTO cdc.CDC_regla (id_producto_especie,id_mercado,ppm,dias,activo,unidad,vigencia_desde,fuente,fecha_fuente)
-SELECT pe.id_producto_especie, src.id_mercado, src.ppm, src.dias, CAST(1 AS bit),
+INSERT INTO cdc.Regla (ProductoEspecieId,MercadoId,Ppm,Dias,Activo,Unidad,VigenciaDesde,Fuente,FechaFuente)
+SELECT pe.Id AS ProductoEspecieId, src.MercadoId, src.Ppm, src.Dias, CAST(1 AS bit),
        'ppm','2025-12-22 00:00:00','ASOEX (8) 22-12-2025.xlsx','2025-12-22 00:00:00'
 FROM src
-INNER JOIN cdc.CDC_producto_especie pe
-  ON pe.id_especie=src.id_especie AND pe.id_producto=src.id_producto
+INNER JOIN cdc.ProductoEspecie pe
+  ON pe.EspecieId=src.EspecieId AND pe.ProductoId=src.ProductoId
 WHERE NOT EXISTS (
-  SELECT 1 FROM cdc.CDC_regla r
-  WHERE r.id_producto_especie=pe.id_producto_especie
-    AND r.id_mercado=src.id_mercado
-    AND r.ppm=src.ppm
-    AND r.dias=src.dias
-    AND ISNULL(r.vigencia_desde,'1900-01-01') = '2025-12-22 00:00:00'
+  SELECT 1 FROM cdc.Regla r
+  WHERE r.ProductoEspecieId=pe.Id
+    AND r.MercadoId=src.MercadoId
+    AND r.Ppm=src.Ppm
+    AND r.Dias=src.Dias
+    AND ISNULL(r.VigenciaDesde,'1900-01-01') = '2025-12-22 00:00:00'
 );
 GO
 
 -- Lote 2
 ;WITH src AS (
-  SELECT e.id_especie, p.id_producto, m.id_mercado, v.ppm, v.dias
+  SELECT e.Id AS EspecieId, p.Id AS ProductoId, m.Id AS MercadoId, v.Ppm, v.Dias
   FROM (VALUES
 
   ('CER','ACETAMIPRID','TAILANDIA','1.5',3),
@@ -5407,30 +5407,30 @@ GO
   ('DUR','EMAMECTIN','CANADA','0.1',3),
   ('DUR','EMAMECTIN','COSTA RICA','0.03',12),
   ('DUR','EMAMECTIN','ECUADOR','0.03',12)
-) v(codigo_especie,producto_glosa,mercado,ppm,dias)
-  INNER JOIN cdc.CDC_especie e ON e.codigo_especie=v.codigo_especie
-  INNER JOIN cdc.CDC_producto p ON p.glosa=v.producto_glosa
-  INNER JOIN cdc.CDC_mercado m ON m.nombre=v.mercado
+) v(CodigoEspecie,ProductoGlosa,Mercado,Ppm,Dias)
+  INNER JOIN cdc.Especie e ON e.CodigoEspecie=v.CodigoEspecie
+  INNER JOIN cdc.Producto p ON p.Glosa=v.ProductoGlosa
+  INNER JOIN cdc.Mercado m ON m.Nombre=v.Mercado
 )
-INSERT INTO cdc.CDC_regla (id_producto_especie,id_mercado,ppm,dias,activo,unidad,vigencia_desde,fuente,fecha_fuente)
-SELECT pe.id_producto_especie, src.id_mercado, src.ppm, src.dias, CAST(1 AS bit),
+INSERT INTO cdc.Regla (ProductoEspecieId,MercadoId,Ppm,Dias,Activo,Unidad,VigenciaDesde,Fuente,FechaFuente)
+SELECT pe.Id AS ProductoEspecieId, src.MercadoId, src.Ppm, src.Dias, CAST(1 AS bit),
        'ppm','2025-12-22 00:00:00','ASOEX (8) 22-12-2025.xlsx','2025-12-22 00:00:00'
 FROM src
-INNER JOIN cdc.CDC_producto_especie pe
-  ON pe.id_especie=src.id_especie AND pe.id_producto=src.id_producto
+INNER JOIN cdc.ProductoEspecie pe
+  ON pe.EspecieId=src.EspecieId AND pe.ProductoId=src.ProductoId
 WHERE NOT EXISTS (
-  SELECT 1 FROM cdc.CDC_regla r
-  WHERE r.id_producto_especie=pe.id_producto_especie
-    AND r.id_mercado=src.id_mercado
-    AND r.ppm=src.ppm
-    AND r.dias=src.dias
-    AND ISNULL(r.vigencia_desde,'1900-01-01') = '2025-12-22 00:00:00'
+  SELECT 1 FROM cdc.Regla r
+  WHERE r.ProductoEspecieId=pe.Id
+    AND r.MercadoId=src.MercadoId
+    AND r.Ppm=src.Ppm
+    AND r.Dias=src.Dias
+    AND ISNULL(r.VigenciaDesde,'1900-01-01') = '2025-12-22 00:00:00'
 );
 GO
 
 -- Lote 3
 ;WITH src AS (
-  SELECT e.id_especie, p.id_producto, m.id_mercado, v.ppm, v.dias
+  SELECT e.Id AS EspecieId, p.Id AS ProductoId, m.Id AS MercadoId, v.Ppm, v.Dias
   FROM (VALUES
 
   ('DUR','EMAMECTIN','MEXICO','0.03',12),
@@ -6433,30 +6433,30 @@ GO
   ('MAN','METHOXYFENOZIDE','CHINA','3',5),
   ('MAN','METHOXYFENOZIDE','COSTA RICA','2',5),
   ('MAN','METHOXYFENOZIDE','ECUADOR','2',5)
-) v(codigo_especie,producto_glosa,mercado,ppm,dias)
-  INNER JOIN cdc.CDC_especie e ON e.codigo_especie=v.codigo_especie
-  INNER JOIN cdc.CDC_producto p ON p.glosa=v.producto_glosa
-  INNER JOIN cdc.CDC_mercado m ON m.nombre=v.mercado
+) v(CodigoEspecie,ProductoGlosa,Mercado,Ppm,Dias)
+  INNER JOIN cdc.Especie e ON e.CodigoEspecie=v.CodigoEspecie
+  INNER JOIN cdc.Producto p ON p.Glosa=v.ProductoGlosa
+  INNER JOIN cdc.Mercado m ON m.Nombre=v.Mercado
 )
-INSERT INTO cdc.CDC_regla (id_producto_especie,id_mercado,ppm,dias,activo,unidad,vigencia_desde,fuente,fecha_fuente)
-SELECT pe.id_producto_especie, src.id_mercado, src.ppm, src.dias, CAST(1 AS bit),
+INSERT INTO cdc.Regla (ProductoEspecieId,MercadoId,Ppm,Dias,Activo,Unidad,VigenciaDesde,Fuente,FechaFuente)
+SELECT pe.Id AS ProductoEspecieId, src.MercadoId, src.Ppm, src.Dias, CAST(1 AS bit),
        'ppm','2025-12-22 00:00:00','ASOEX (8) 22-12-2025.xlsx','2025-12-22 00:00:00'
 FROM src
-INNER JOIN cdc.CDC_producto_especie pe
-  ON pe.id_especie=src.id_especie AND pe.id_producto=src.id_producto
+INNER JOIN cdc.ProductoEspecie pe
+  ON pe.EspecieId=src.EspecieId AND pe.ProductoId=src.ProductoId
 WHERE NOT EXISTS (
-  SELECT 1 FROM cdc.CDC_regla r
-  WHERE r.id_producto_especie=pe.id_producto_especie
-    AND r.id_mercado=src.id_mercado
-    AND r.ppm=src.ppm
-    AND r.dias=src.dias
-    AND ISNULL(r.vigencia_desde,'1900-01-01') = '2025-12-22 00:00:00'
+  SELECT 1 FROM cdc.Regla r
+  WHERE r.ProductoEspecieId=pe.Id
+    AND r.MercadoId=src.MercadoId
+    AND r.Ppm=src.Ppm
+    AND r.Dias=src.Dias
+    AND ISNULL(r.VigenciaDesde,'1900-01-01') = '2025-12-22 00:00:00'
 );
 GO
 
 -- Lote 4
 ;WITH src AS (
-  SELECT e.id_especie, p.id_producto, m.id_mercado, v.ppm, v.dias
+  SELECT e.Id AS EspecieId, p.Id AS ProductoId, m.Id AS MercadoId, v.Ppm, v.Dias
   FROM (VALUES
 
   ('MAN','METHOXYFENOZIDE','EAU','2',5),
@@ -7459,30 +7459,30 @@ GO
   ('PER','ACETAMIPRID','ECUADOR','0.8',15),
   ('PER','ACETAMIPRID','EAU','0.8',15),
   ('PER','ACETAMIPRID','HONG KONG','1',15)
-) v(codigo_especie,producto_glosa,mercado,ppm,dias)
-  INNER JOIN cdc.CDC_especie e ON e.codigo_especie=v.codigo_especie
-  INNER JOIN cdc.CDC_producto p ON p.glosa=v.producto_glosa
-  INNER JOIN cdc.CDC_mercado m ON m.nombre=v.mercado
+) v(CodigoEspecie,ProductoGlosa,Mercado,Ppm,Dias)
+  INNER JOIN cdc.Especie e ON e.CodigoEspecie=v.CodigoEspecie
+  INNER JOIN cdc.Producto p ON p.Glosa=v.ProductoGlosa
+  INNER JOIN cdc.Mercado m ON m.Nombre=v.Mercado
 )
-INSERT INTO cdc.CDC_regla (id_producto_especie,id_mercado,ppm,dias,activo,unidad,vigencia_desde,fuente,fecha_fuente)
-SELECT pe.id_producto_especie, src.id_mercado, src.ppm, src.dias, CAST(1 AS bit),
+INSERT INTO cdc.Regla (ProductoEspecieId,MercadoId,Ppm,Dias,Activo,Unidad,VigenciaDesde,Fuente,FechaFuente)
+SELECT pe.Id AS ProductoEspecieId, src.MercadoId, src.Ppm, src.Dias, CAST(1 AS bit),
        'ppm','2025-12-22 00:00:00','ASOEX (8) 22-12-2025.xlsx','2025-12-22 00:00:00'
 FROM src
-INNER JOIN cdc.CDC_producto_especie pe
-  ON pe.id_especie=src.id_especie AND pe.id_producto=src.id_producto
+INNER JOIN cdc.ProductoEspecie pe
+  ON pe.EspecieId=src.EspecieId AND pe.ProductoId=src.ProductoId
 WHERE NOT EXISTS (
-  SELECT 1 FROM cdc.CDC_regla r
-  WHERE r.id_producto_especie=pe.id_producto_especie
-    AND r.id_mercado=src.id_mercado
-    AND r.ppm=src.ppm
-    AND r.dias=src.dias
-    AND ISNULL(r.vigencia_desde,'1900-01-01') = '2025-12-22 00:00:00'
+  SELECT 1 FROM cdc.Regla r
+  WHERE r.ProductoEspecieId=pe.Id
+    AND r.MercadoId=src.MercadoId
+    AND r.Ppm=src.Ppm
+    AND r.Dias=src.Dias
+    AND ISNULL(r.VigenciaDesde,'1900-01-01') = '2025-12-22 00:00:00'
 );
 GO
 
 -- Lote 5
 ;WITH src AS (
-  SELECT e.id_especie, p.id_producto, m.id_mercado, v.ppm, v.dias
+  SELECT e.Id AS EspecieId, p.Id AS ProductoId, m.Id AS MercadoId, v.Ppm, v.Dias
   FROM (VALUES
 
   ('PER','ACETAMIPRID','INDONESIA','0.8',15),
@@ -8485,30 +8485,30 @@ GO
   ('UVM','PYRACLOSTROBIN','AUSTRALIA','2',3),
   ('UVM','PYRACLOSTROBIN','CANADA','2',3),
   ('UVM','PYRACLOSTROBIN','CHINA','2',3)
-) v(codigo_especie,producto_glosa,mercado,ppm,dias)
-  INNER JOIN cdc.CDC_especie e ON e.codigo_especie=v.codigo_especie
-  INNER JOIN cdc.CDC_producto p ON p.glosa=v.producto_glosa
-  INNER JOIN cdc.CDC_mercado m ON m.nombre=v.mercado
+) v(CodigoEspecie,ProductoGlosa,Mercado,Ppm,Dias)
+  INNER JOIN cdc.Especie e ON e.CodigoEspecie=v.CodigoEspecie
+  INNER JOIN cdc.Producto p ON p.Glosa=v.ProductoGlosa
+  INNER JOIN cdc.Mercado m ON m.Nombre=v.Mercado
 )
-INSERT INTO cdc.CDC_regla (id_producto_especie,id_mercado,ppm,dias,activo,unidad,vigencia_desde,fuente,fecha_fuente)
-SELECT pe.id_producto_especie, src.id_mercado, src.ppm, src.dias, CAST(1 AS bit),
+INSERT INTO cdc.Regla (ProductoEspecieId,MercadoId,Ppm,Dias,Activo,Unidad,VigenciaDesde,Fuente,FechaFuente)
+SELECT pe.Id AS ProductoEspecieId, src.MercadoId, src.Ppm, src.Dias, CAST(1 AS bit),
        'ppm','2025-12-22 00:00:00','ASOEX (8) 22-12-2025.xlsx','2025-12-22 00:00:00'
 FROM src
-INNER JOIN cdc.CDC_producto_especie pe
-  ON pe.id_especie=src.id_especie AND pe.id_producto=src.id_producto
+INNER JOIN cdc.ProductoEspecie pe
+  ON pe.EspecieId=src.EspecieId AND pe.ProductoId=src.ProductoId
 WHERE NOT EXISTS (
-  SELECT 1 FROM cdc.CDC_regla r
-  WHERE r.id_producto_especie=pe.id_producto_especie
-    AND r.id_mercado=src.id_mercado
-    AND r.ppm=src.ppm
-    AND r.dias=src.dias
-    AND ISNULL(r.vigencia_desde,'1900-01-01') = '2025-12-22 00:00:00'
+  SELECT 1 FROM cdc.Regla r
+  WHERE r.ProductoEspecieId=pe.Id
+    AND r.MercadoId=src.MercadoId
+    AND r.Ppm=src.Ppm
+    AND r.Dias=src.Dias
+    AND ISNULL(r.VigenciaDesde,'1900-01-01') = '2025-12-22 00:00:00'
 );
 GO
 
 -- Lote 6
 ;WITH src AS (
-  SELECT e.id_especie, p.id_producto, m.id_mercado, v.ppm, v.dias
+  SELECT e.Id AS EspecieId, p.Id AS ProductoId, m.Id AS MercadoId, v.Ppm, v.Dias
   FROM (VALUES
 
   ('UVM','PYRACLOSTROBIN','COREA','3',3),
@@ -9159,24 +9159,24 @@ GO
   ('UVM','FENAMIPHOS','USA','0.1',15),
   ('UVM','FENAMIPHOS','VIETNAM','0.1',15),
   ('UVV','FENBUCONAZOLE','MEXICO','1',12)
-) v(codigo_especie,producto_glosa,mercado,ppm,dias)
-  INNER JOIN cdc.CDC_especie e ON e.codigo_especie=v.codigo_especie
-  INNER JOIN cdc.CDC_producto p ON p.glosa=v.producto_glosa
-  INNER JOIN cdc.CDC_mercado m ON m.nombre=v.mercado
+) v(CodigoEspecie,ProductoGlosa,Mercado,Ppm,Dias)
+  INNER JOIN cdc.Especie e ON e.CodigoEspecie=v.CodigoEspecie
+  INNER JOIN cdc.Producto p ON p.Glosa=v.ProductoGlosa
+  INNER JOIN cdc.Mercado m ON m.Nombre=v.Mercado
 )
-INSERT INTO cdc.CDC_regla (id_producto_especie,id_mercado,ppm,dias,activo,unidad,vigencia_desde,fuente,fecha_fuente)
-SELECT pe.id_producto_especie, src.id_mercado, src.ppm, src.dias, CAST(1 AS bit),
+INSERT INTO cdc.Regla (ProductoEspecieId,MercadoId,Ppm,Dias,Activo,Unidad,VigenciaDesde,Fuente,FechaFuente)
+SELECT pe.Id AS ProductoEspecieId, src.MercadoId, src.Ppm, src.Dias, CAST(1 AS bit),
        'ppm','2025-12-22 00:00:00','ASOEX (8) 22-12-2025.xlsx','2025-12-22 00:00:00'
 FROM src
-INNER JOIN cdc.CDC_producto_especie pe
-  ON pe.id_especie=src.id_especie AND pe.id_producto=src.id_producto
+INNER JOIN cdc.ProductoEspecie pe
+  ON pe.EspecieId=src.EspecieId AND pe.ProductoId=src.ProductoId
 WHERE NOT EXISTS (
-  SELECT 1 FROM cdc.CDC_regla r
-  WHERE r.id_producto_especie=pe.id_producto_especie
-    AND r.id_mercado=src.id_mercado
-    AND r.ppm=src.ppm
-    AND r.dias=src.dias
-    AND ISNULL(r.vigencia_desde,'1900-01-01') = '2025-12-22 00:00:00'
+  SELECT 1 FROM cdc.Regla r
+  WHERE r.ProductoEspecieId=pe.Id
+    AND r.MercadoId=src.MercadoId
+    AND r.Ppm=src.Ppm
+    AND r.Dias=src.Dias
+    AND ISNULL(r.VigenciaDesde,'1900-01-01') = '2025-12-22 00:00:00'
 );
 GO
 

@@ -37,10 +37,10 @@ make down           # Baja el stack
 
 ## Servicios
 
-| Servicio   | Puerto | Descripcion                      |
-|------------|--------|----------------------------------|
-| `front-ng` | 80     | Frontend Angular (Cuaderno Campo)|
-| `back`     | 3000   | Backend Node (perfil `node`)     |
+| Servicio       | Puerto | Descripcion                      |
+|----------------|--------|----------------------------------|
+| `cdc-front-ng` | 80     | Frontend Angular (Cuaderno Campo)|
+| `cdc-back`     | 3000   | Backend Node (perfil `node`)     |
 
 ## Targets del Makefile
 
@@ -52,8 +52,8 @@ Bootstrap:
   make doctor           Verifica docker, compose, .env y repos
 
 Build:
-  make build-front      Build de cdc-front-ng
-  make build-back       Build de cdc-back
+  make build-cdc-front  Build de cdc-front-ng
+  make build-cdc-back   Build de cdc-back
   make build-all        Build de todas las imagenes
   make rebuild          Rebuild completo sin cache
 
@@ -67,8 +67,8 @@ Ops:
   make ps               Estado de contenedores
   make status           Estado + resumen
   make logs             Logs de todo el stack
-  make logs-front       Logs de front-ng
-  make logs-back        Logs de back
+  make logs-cdc-front   Logs de cdc-front-ng
+  make logs-cdc-back    Logs de cdc-back
 
 Deploy:
   make pull             Git pull en front/back/infra
