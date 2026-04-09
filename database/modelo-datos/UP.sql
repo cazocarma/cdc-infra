@@ -20,36 +20,43 @@ GO
 
 /* =========================
    Usuario
+   Identidades federadas via Keycloak (BFF). Sin password local.
+   - Sub: claim 'sub' del id_token (UUID estable de Keycloak). Es la
+     identidad de verdad y unica restriccion unique.
+   - Usuario: preferred_username, mutable, NO unique.
+   - PrimaryRole: rol de realm extraido del token (single role MVP).
 ========================= */
 CREATE TABLE [cdc].[Usuario] (
-    [Id]            BIGINT IDENTITY(1,1) NOT NULL,
-    [Usuario]       VARCHAR(50)     NOT NULL,
-    [Nombre]        NVARCHAR(100)   NOT NULL,
-    [Email]         NVARCHAR(150)   NULL,
-    [PasswordHash]  VARCHAR(255)    NULL,
-    [Activo]        BIT             NOT NULL CONSTRAINT [DF_Usuario_Activo]    DEFAULT(1),
-    [CreatedAt]     DATETIME2(0)    NOT NULL CONSTRAINT [DF_Usuario_CreatedAt] DEFAULT(SYSUTCDATETIME()),
-    [UpdatedAt]     DATETIME2(0)    NOT NULL CONSTRAINT [DF_Usuario_UpdatedAt] DEFAULT(SYSUTCDATETIME()),
-    CONSTRAINT [PK_Usuario]         PRIMARY KEY ([Id]),
-    CONSTRAINT [UQ_Usuario_Usuario] UNIQUE ([Usuario])
+    [Id]          BIGINT IDENTITY(1,1) NOT NULL,
+    [Sub]         VARCHAR(64)   NOT NULL,
+    [Usuario]     VARCHAR(50)   NOT NULL,
+    [Nombre]      NVARCHAR(100) NOT NULL,
+    [Email]       NVARCHAR(150) NULL,
+    [PrimaryRole] VARCHAR(50)   NOT NULL CONSTRAINT [DF_Usuario_PrimaryRole] DEFAULT('cdc-user'),
+    [Activo]      BIT           NOT NULL CONSTRAINT [DF_Usuario_Activo]      DEFAULT(1),
+    [CreatedAt]   DATETIME2(0)  NOT NULL CONSTRAINT [DF_Usuario_CreatedAt]   DEFAULT(SYSUTCDATETIME()),
+    [UpdatedAt]   DATETIME2(0)  NOT NULL CONSTRAINT [DF_Usuario_UpdatedAt]   DEFAULT(SYSUTCDATETIME()),
+    CONSTRAINT [PK_Usuario]     PRIMARY KEY ([Id]),
+    CONSTRAINT [UQ_Usuario_Sub] UNIQUE ([Sub])
 );
 GO
 
 /* =========================
    Auditoria
+   Eventos: LOGIN, LOGOUT, INSERT, UPDATE, DELETE,
+            REFRESH_FAIL, CSRF_FAIL, UNAUTHORIZED, FORBIDDEN_ROLE
+   Tabla/Pk son nullables porque eventos de auth no tocan filas.
 ========================= */
 CREATE TABLE [cdc].[Auditoria] (
-    [Id]           BIGINT IDENTITY(1,1) NOT NULL,
-    [UsuarioId]    BIGINT          NULL,
-    [FechaEvento]  DATETIME2(0)    NOT NULL CONSTRAINT [DF_Auditoria_FechaEvento] DEFAULT(SYSUTCDATETIME()),
-    [Operacion]    VARCHAR(10)     NOT NULL,
-    [Tabla]        VARCHAR(128)    NOT NULL,
-    [Pk]           VARCHAR(200)    NOT NULL,
-    [Detalle]      NVARCHAR(500)   NULL,
-    [BeforeJson]   NVARCHAR(MAX)   NULL,
-    [AfterJson]    NVARCHAR(MAX)   NULL,
-    [Origen]       VARCHAR(50)     NULL CONSTRAINT [DF_Auditoria_Origen] DEFAULT('UI'),
-    CONSTRAINT [PK_Auditoria] PRIMARY KEY ([Id])
+    [Id]          BIGINT IDENTITY(1,1) NOT NULL,
+    [UsuarioId]   BIGINT        NULL,
+    [FechaEvento] DATETIME2(0)  NOT NULL CONSTRAINT [DF_Auditoria_FechaEvento] DEFAULT(SYSUTCDATETIME()),
+    [Operacion]   VARCHAR(20)   NOT NULL,
+    [Tabla]       VARCHAR(128)  NULL,
+    [Pk]          VARCHAR(200)  NULL,
+    [Detalle]     NVARCHAR(500) NULL,
+    [Origen]      VARCHAR(50)   NOT NULL CONSTRAINT [DF_Auditoria_Origen] DEFAULT('OIDC'),
+    CONSTRAINT [PK_Auditoria]   PRIMARY KEY ([Id])
 );
 GO
 

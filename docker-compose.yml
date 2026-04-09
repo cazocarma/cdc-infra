@@ -81,6 +81,7 @@ services:
           - cdc-backend
       egress:
       identity:
+      cache:
     volumes:
       - ../cdc-back:/workspace/cdc-back
       - back-node_modules:/workspace/cdc-back/node_modules
@@ -111,3 +112,6 @@ networks:
   identity:
     external: true
     name: platform_identity
+  cache:
+    external: true
+    name: platform_cache

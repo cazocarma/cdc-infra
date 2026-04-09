@@ -111,6 +111,8 @@ net-check:
 		(echo "ERROR: La red greenvic-cdc_default no existe. Levanta el stack platform primero." && exit 1)
 	@docker network inspect platform_identity > /dev/null 2>&1 || \
 		(echo "ERROR: La red platform_identity no existe. Levanta el stack platform primero." && exit 1)
+	@docker network inspect platform_cache > /dev/null 2>&1 || \
+		(echo "ERROR: La red platform_cache no existe. Levanta el stack platform primero." && exit 1)
 
 repo-check:
 	@if [ ! -d "$(CDC_FRONT_DIR)" ]; then \
@@ -152,10 +154,10 @@ doctor: env-check repo-check
 # Build
 # =============================================================================
 build-cdc-front: env-check repo-check
-	$(COMPOSE) build cdc-front-ng
+	$(COMPOSE) build front-ng
 
 build-cdc-back: env-check repo-check
-	$(COMPOSE_NODE) build cdc-back
+	$(COMPOSE_NODE) build back
 
 build-all: env-check repo-check
 	$(COMPOSE_NODE) build
@@ -188,10 +190,10 @@ restart: env-check repo-check
 	$(COMPOSE_NODE) restart
 
 restart-cdc-front: env-check repo-check
-	$(COMPOSE) restart cdc-front-ng
+	$(COMPOSE) restart front-ng
 
 restart-cdc-back: env-check repo-check
-	$(COMPOSE_NODE) restart cdc-back
+	$(COMPOSE_NODE) restart back
 
 # =============================================================================
 # Ops
@@ -210,10 +212,10 @@ logs: env-check repo-check
 	$(COMPOSE_NODE) logs -f --tail=$(TAIL)
 
 logs-cdc-front: env-check repo-check
-	$(COMPOSE) logs -f --tail=$(TAIL) cdc-front-ng
+	$(COMPOSE) logs -f --tail=$(TAIL) front-ng
 
 logs-cdc-back: env-check repo-check
-	$(COMPOSE_NODE) logs -f --tail=$(TAIL) cdc-back
+	$(COMPOSE_NODE) logs -f --tail=$(TAIL) back
 
 # =============================================================================
 # Debug / acceso a contenedores
@@ -222,10 +224,10 @@ config: env-check repo-check
 	$(COMPOSE_NODE) config
 
 exec-cdc-front: env-check repo-check
-	$(COMPOSE) exec cdc-front-ng sh
+	$(COMPOSE) exec front-ng sh
 
 exec-cdc-back: env-check repo-check
-	$(COMPOSE_NODE) exec cdc-back sh
+	$(COMPOSE_NODE) exec back sh
 
 # =============================================================================
 # Git / Deploy
