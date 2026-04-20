@@ -1,32 +1,35 @@
-name: greenvic-cdc
+name: greenvic-cdc-${CDC_ENV:-prd}
 
-x-node-service: &node-service
-  image: node:20-bookworm-slim@sha256:a82f40540f5959e0003fb7b3c0f80490def2927be8bdbee7e3e0ac65cce3be92
-  init: true
-  restart: unless-stopped
-  pull_policy: if_not_present
-  security_opt:
-    - no-new-privileges:true
-  environment:
-    NODE_ENV: "${NODE_ENV:-development}"
-    NPM_CONFIG_FETCH_RETRIES: "5"
-    NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
-    NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
-    NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
-    NPM_CONFIG_AUDIT: "false"
-    NPM_CONFIG_FUND: "false"
-  extra_hosts:
-    - "host.docker.internal:host-gateway"
+# =============================================================================
+# CDC — docker-compose base (prod-like).
+# Alineado con platform/docs/PLATFORM_INTEGRATION_SPEC.md §6.
+#
+# Consume las redes externas de platform:
+#   - platform_identity  (Keycloak)
+#
+# El router de platform (NGINX :81) alcanza este stack por los aliases
+# `cdc-frontend` y `cdc-backend`.
+#
+# En dev, docker-compose.override.yml agrega bind mounts + hot-reload.
+# =============================================================================
+
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+    compress: "true"
 
 services:
   front-ng:
     build:
       context: ../cdc-front-ng
       dockerfile: Dockerfile
-    image: cdc-front-ng:local
+    image: cdc-front-ng:${CDC_ENV:-prd}
+    container_name: cdc-front-${CDC_ENV:-prd}
     init: true
     restart: unless-stopped
-    pull_policy: if_not_present
+    pull_policy: never
     read_only: true
     tmpfs:
       - /var/cache/nginx:uid=101,gid=101
@@ -34,76 +37,78 @@ services:
       - /tmp
     security_opt:
       - no-new-privileges:true
+    logging:
+      <<: *default-logging
     deploy:
       resources:
         limits:
           memory: 128M
           cpus: "0.5"
     expose:
-      - "80"
+      - "3000"
+    networks:
+      default:
+        aliases:
+          - cdc-frontend
     healthcheck:
       test:
-        ["CMD-SHELL", "wget -q -O - http://127.0.0.1/healthz > /dev/null 2>&1 || exit 1"]
+        - "CMD-SHELL"
+        - "wget -q -O - http://127.0.0.1:3000/healthz > /dev/null 2>&1 || exit 1"
       interval: 15s
       timeout: 5s
       retries: 10
       start_period: 15s
 
   back:
-    <<: *node-service
-    profiles: ["node"]
-    working_dir: /workspace/cdc-back
-    env_file:
-      - ./.env
+    build:
+      context: ../cdc-back
+      dockerfile: Dockerfile
+      target: runtime
+    image: cdc-back:${CDC_ENV:-prd}
+    container_name: cdc-back-${CDC_ENV:-prd}
+    init: true
+    restart: unless-stopped
+    pull_policy: never
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      <<: *default-logging
     deploy:
       resources:
         limits:
           memory: 512M
           cpus: "1.0"
+    env_file:
+      - ./.env
     environment:
-      NODE_ENV: "${NODE_ENV:-development}"
-      NPM_CONFIG_FETCH_RETRIES: "5"
-      NPM_CONFIG_FETCH_RETRY_FACTOR: "2"
-      NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "20000"
-      NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "120000"
-      NPM_CONFIG_AUDIT: "false"
-      NPM_CONFIG_FUND: "false"
-      PORT: "${PORT:-3000}"
+      NODE_ENV: "${NODE_ENV:-production}"
+      PORT: "4000"
+      HOSTNAME: "0.0.0.0"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     expose:
-      - "3000"
+      - "4000"
     networks:
       default:
         aliases:
-          - api-backend
-      egress:
+          - cdc-backend
       identity:
-    volumes:
-      - ../cdc-back:/workspace/cdc-back
-      - back-node_modules:/workspace/cdc-back/node_modules
-      - npm-cache:/root/.npm
-    command: >
-      sh -lc "if [ ! -f node_modules/express/package.json ] || [ ! -f node_modules/mssql/package.json ]; then npm install --prefer-offline --no-audit --no-fund; fi && npm run dev"
     healthcheck:
       test:
-        [
-          "CMD-SHELL",
-          "node -e \"require('http').get('http://127.0.0.1:3000/api/health',r=>process.exit(r.statusCode>=200&&r.statusCode<500?0:1)).on('error',()=>process.exit(1))\"",
-        ]
+        - "CMD-SHELL"
+        - "node -e \"fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""
       interval: 15s
       timeout: 5s
       retries: 20
       start_period: 30s
 
-volumes:
-  npm-cache:
-  back-node_modules:
-
 networks:
   default:
     external: true
-    name: greenvic-cdc_default
-  egress:
-    name: greenvic-cdc_egress
+    name: greenvic-cdc-${CDC_ENV:-prd}_default
   identity:
     external: true
     name: platform_identity
