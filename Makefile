@@ -1,282 +1,197 @@
 .DEFAULT_GOAL := help
 
 # =============================================================================
-# CDC — Makefile operativo para entorno Linux/Ubuntu
-# Repos esperados:
-#   /opt/cdc/repos/cdc-front-ng
-#   /opt/cdc/repos/cdc-back
-#   /opt/cdc/repos/cdc-infra   <-- este Makefile vive aquí
+# CDC — Makefile operativo
+# Un solo comando, una sola fuente de verdad.
+#
+# Uso tipico:
+#   make setup-env    # primera vez: crea .env desde .env.example
+#   make up           # levanta el stack (dev o prd segun CDC_ENV en .env)
+#   make down
+#   make logs
+#
+# El entorno se decide por CDC_ENV (leido de .env). dev aplica el overlay
+# docker-compose.dev.yml automaticamente; prd usa solo el base.
+# En prd remoto el deployer de platform ejecuta este mismo flujo al detectar
+# un push a main (poll cada 5 min); el operador solo hace `make up` una vez.
 # =============================================================================
 
-# --- Rutas base ---------------------------------------------------------------
 ROOT_DIR       := $(abspath $(CURDIR))
 INFRA_DIR      := $(ROOT_DIR)
-CDC_FRONT_DIR  := $(abspath $(INFRA_DIR)/../cdc-front-ng)
-CDC_BACK_DIR   := $(abspath $(INFRA_DIR)/../cdc-back)
+BACK_DIR       := $(abspath $(INFRA_DIR)/../cdc-back)
+FRONT_DIR      := $(abspath $(INFRA_DIR)/../cdc-front-ng)
 
-# --- Compose / env ------------------------------------------------------------
-COMPOSE_FILE   := $(INFRA_DIR)/docker-compose.yml
+COMPOSE_BASE   := $(INFRA_DIR)/docker-compose.yml
+COMPOSE_DEV    := $(INFRA_DIR)/docker-compose.dev.yml
 ENV_FILE       := $(INFRA_DIR)/.env
-ENV_EXAMPLE    := $(INFRA_DIR)/.env.example
-
-COMPOSE        := docker compose -f $(COMPOSE_FILE) --env-file $(ENV_FILE)
-COMPOSE_NODE   := $(COMPOSE) --profile node
-
-# --- Utilidades ---------------------------------------------------------------
 TAIL           ?= 200
-SHELL          := /bin/bash
 
-# --- Phony targets ------------------------------------------------------------
-.PHONY: help
-.PHONY: env-check repo-check net-check doctor
-.PHONY: build-cdc-front build-cdc-back build-all rebuild
-.PHONY: up up-build down down-v stop start restart restart-cdc-front restart-cdc-back
-.PHONY: ps logs logs-cdc-front logs-cdc-back
-.PHONY: config pull deploy redeploy
-.PHONY: exec-cdc-front exec-cdc-back
-.PHONY: images volumes networks
-.PHONY: prune prune-soft
-.PHONY: status
+# ── Shell (Linux bash / Windows Git Bash) ──────────────────────────────────
+BASH ?=
+ifeq ($(strip $(BASH)),)
+  ifeq ($(OS),Windows_NT)
+    BASH := $(strip $(shell command -v bash 2>/dev/null))
+    ifeq ($(strip $(BASH)),)
+      ifneq ($(wildcard C:/Progra~1/Git/bin/bash.exe),)
+        BASH := C:/Progra~1/Git/bin/bash.exe
+      else ifneq ($(wildcard C:/Progra~1/Git/usr/bin/bash.exe),)
+        BASH := C:/Progra~1/Git/usr/bin/bash.exe
+      endif
+    endif
+  else
+    BASH := $(firstword $(shell command -v bash))
+  endif
+endif
+SHELL := $(BASH)
+.SHELLFLAGS := -c
+
+# ── Carga .env al entorno de make (para CDC_ENV) ───────────────────────────
+ifneq (,$(wildcard $(ENV_FILE)))
+  include $(ENV_FILE)
+  export
+endif
+
+CDC_ENV ?= prd
+
+# ── Compose handle: base + overlay dev si CDC_ENV=dev ──────────────────────
+COMPOSE_FILES := -f $(COMPOSE_BASE)
+ifeq ($(CDC_ENV),dev)
+  COMPOSE_FILES += -f $(COMPOSE_DEV)
+endif
+COMPOSE := docker compose --env-file $(ENV_FILE) $(COMPOSE_FILES)
 
 # =============================================================================
 # Help
 # =============================================================================
+
+## help: lista de targets disponibles
+.PHONY: help
 help:
-	@echo "Greenvic Cuaderno de Campo — Makefile"
-	@echo ""
-	@echo "Bootstrap:"
-	@echo "  make env-check        Verifica .env"
-	@echo "  make repo-check       Verifica que existan los repos esperados"
-	@echo "  make net-check        Verifica redes Docker externas"
-	@echo "  make doctor           Verifica docker, compose, .env y repos"
-	@echo ""
-	@echo "Build:"
-	@echo "  make build-cdc-front  Build de cdc-front-ng"
-	@echo "  make build-cdc-back   Build de cdc-back"
-	@echo "  make build-all        Build de todas las imagenes"
-	@echo "  make rebuild          Rebuild completo sin cache"
-	@echo ""
-	@echo "Run:"
-	@echo "  make up               Levanta el stack"
-	@echo "  make up-build         Levanta reconstruyendo"
-	@echo "  make down             Baja el stack"
-	@echo "  make down-v           Baja el stack y elimina volumenes"
-	@echo "  make stop             Detiene servicios"
-	@echo "  make start            Inicia servicios ya creados"
-	@echo "  make restart          Reinicia todo el stack"
-	@echo ""
-	@echo "Ops:"
-	@echo "  make ps               Estado de contenedores"
-	@echo "  make status           Estado + resumen"
-	@echo "  make logs             Logs de todo el stack"
-	@echo "  make logs-cdc-front   Logs de cdc-front-ng"
-	@echo "  make logs-cdc-back    Logs de cdc-back"
-	@echo "  make restart-cdc-front Reinicia cdc-front-ng"
-	@echo "  make restart-cdc-back Reinicia cdc-back"
-	@echo ""
-	@echo "Debug:"
-	@echo "  make config           Render de docker compose"
-	@echo "  make exec-cdc-front   Shell en cdc-front-ng"
-	@echo "  make exec-cdc-back    Shell en cdc-back"
-	@echo ""
-	@echo "Deploy:"
-	@echo "  make pull             Git pull en front/back/infra"
-	@echo "  make deploy           Pull + up -d --build"
-	@echo "  make redeploy         Down + deploy"
-	@echo ""
-	@echo "Infra:"
-	@echo "  make images           Lista imagenes"
-	@echo "  make volumes          Lista volumenes"
-	@echo "  make networks         Lista redes"
-	@echo "  make prune-soft       Limpieza suave"
-	@echo "  make prune            Limpieza agresiva"
-	@echo ""
-	@echo "Variables opcionales:"
-	@echo "  TAIL=500 make logs"
-	@echo ""
-	@true
+	@grep -hE '^## ' $(MAKEFILE_LIST) | sed 's/^## //'
 
 # =============================================================================
-# Validaciones
+# Bootstrap
 # =============================================================================
-env-check:
+
+## setup-env: crea .env a partir de .env.example si no existe
+.PHONY: setup-env
+setup-env:
+	@if [ -f "$(ENV_FILE)" ]; then \
+	  echo ".env ya existe en $(ENV_FILE)"; \
+	else \
+	  cp "$(INFRA_DIR)/.env.example" "$(ENV_FILE)"; \
+	  chmod 600 "$(ENV_FILE)"; \
+	  echo ".env creado con chmod 600 — completar valores <changeme>"; \
+	fi
+
+## doctor: valida .env + repos hermanos + red de platform + branch
+.PHONY: doctor
+doctor:
 	@if [ ! -f "$(ENV_FILE)" ]; then \
-		echo "ERROR: Falta $(ENV_FILE)"; \
-		echo "Crea el archivo copiando $(ENV_EXAMPLE)"; \
-		exit 1; \
+	  echo "Falta $(ENV_FILE). Ejecuta 'make setup-env' y completa valores."; exit 1; \
 	fi
-
-net-check:
-	@docker network inspect greenvic-cdc_default > /dev/null 2>&1 || \
-		(echo "ERROR: La red greenvic-cdc_default no existe. Levanta el stack platform primero." && exit 1)
-	@docker network inspect platform_identity > /dev/null 2>&1 || \
-		(echo "ERROR: La red platform_identity no existe. Levanta el stack platform primero." && exit 1)
-	@docker network inspect platform_cache > /dev/null 2>&1 || \
-		(echo "ERROR: La red platform_cache no existe. Levanta el stack platform primero." && exit 1)
-
-repo-check:
-	@if [ ! -d "$(CDC_FRONT_DIR)" ]; then \
-		echo "ERROR: No existe repo front en $(CDC_FRONT_DIR)"; \
-		exit 1; \
+	@case "$$CDC_ENV" in dev|prd) ;; *) \
+	  echo "CDC_ENV debe ser 'dev' o 'prd' (valor actual: '$$CDC_ENV')"; exit 1 ;; \
+	esac
+	@for d in "$(BACK_DIR)" "$(FRONT_DIR)"; do \
+	  if [ ! -d "$$d" ]; then echo "Falta repo hermano: $$d"; exit 1; fi; \
+	done
+	@if ! docker network ls --format '{{.Name}}' | grep -qx "platform_identity"; then \
+	  echo "Falta red 'platform_identity'. Levanta platform primero ('make up' en /platform)."; \
+	  exit 1; \
 	fi
-	@if [ ! -d "$(CDC_BACK_DIR)" ]; then \
-		echo "ERROR: No existe repo back en $(CDC_BACK_DIR)"; \
-		exit 1; \
+	@if [ "$$CDC_ENV" = "prd" ]; then \
+	  for d in "$(INFRA_DIR)" "$(BACK_DIR)" "$(FRONT_DIR)"; do \
+	    if [ -d "$$d/.git" ]; then \
+	      cur=$$(git -C "$$d" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "<no-git>"); \
+	      if [ "$$cur" != "main" ]; then \
+	        echo "$$d esta en rama '$$cur', prd espera 'main'"; exit 1; \
+	      fi; \
+	    fi; \
+	  done; \
 	fi
-	@if [ ! -f "$(COMPOSE_FILE)" ]; then \
-		echo "ERROR: No existe $(COMPOSE_FILE)"; \
-		exit 1; \
-	fi
-
-doctor: env-check repo-check
-	@echo "== Doctor =="
-	@echo ""
-	@echo "[Docker]"
-	@docker --version
-	@echo ""
-	@echo "[Docker Compose]"
-	@docker compose version
-	@echo ""
-	@echo "[Repos]"
-	@echo "INFRA: $(INFRA_DIR)"
-	@echo "FRONT: $(CDC_FRONT_DIR)"
-	@echo "BACK : $(CDC_BACK_DIR)"
-	@echo ""
-	@echo "[Compose file]"
-	@echo "$(COMPOSE_FILE)"
-	@echo ""
-	@echo "[Env file]"
-	@echo "$(ENV_FILE)"
-	@echo ""
-	@echo "OK"
-
-# =============================================================================
-# Build
-# =============================================================================
-build-cdc-front: env-check repo-check
-	$(COMPOSE) build front-ng
-
-build-cdc-back: env-check repo-check
-	$(COMPOSE_NODE) build back
-
-build-all: env-check repo-check
-	$(COMPOSE_NODE) build
-
-rebuild: env-check repo-check
-	$(COMPOSE_NODE) build --no-cache
+	@echo "OK — entorno listo para CDC_ENV=$$CDC_ENV"
 
 # =============================================================================
 # Run
 # =============================================================================
-up: env-check repo-check net-check
-	$(COMPOSE_NODE) up -d
 
-up-build: env-check repo-check net-check
-	$(COMPOSE_NODE) up -d --build
+## up: build + create + start del stack (dev o prd segun CDC_ENV)
+.PHONY: up
+up: doctor
+	$(COMPOSE) up -d --build --remove-orphans
+	@$(COMPOSE) ps
 
-down: env-check repo-check
-	$(COMPOSE_NODE) down --remove-orphans
+## down: baja el stack (sin tocar volumenes)
+.PHONY: down
+down:
+	$(COMPOSE) down --remove-orphans
 
-down-v: env-check repo-check
-	$(COMPOSE_NODE) down -v --remove-orphans
+## down-v: baja el stack y borra volumenes (uso con cuidado)
+.PHONY: down-v
+down-v:
+	$(COMPOSE) down -v --remove-orphans
 
-stop: env-check repo-check
-	$(COMPOSE_NODE) stop
+## stop: detiene servicios sin borrarlos
+.PHONY: stop
+stop:
+	$(COMPOSE) stop
 
-start: env-check repo-check
-	$(COMPOSE_NODE) start
+## start: arranca servicios ya creados
+.PHONY: start
+start:
+	$(COMPOSE) start
 
-restart: env-check repo-check
-	$(COMPOSE_NODE) restart
+## restart: reinicia todo
+.PHONY: restart
+restart:
+	$(COMPOSE) restart
 
-restart-cdc-front: env-check repo-check
+## restart-back: reinicia solo el back
+.PHONY: restart-back
+restart-back:
+	$(COMPOSE) restart back
+
+## restart-front: reinicia solo el front
+.PHONY: restart-front
+restart-front:
 	$(COMPOSE) restart front-ng
 
-restart-cdc-back: env-check repo-check
-	$(COMPOSE_NODE) restart back
-
 # =============================================================================
-# Ops
+# Observabilidad
 # =============================================================================
-ps: env-check repo-check
-	$(COMPOSE_NODE) ps
 
-status: env-check repo-check
-	@echo "== Estado de contenedores =="
-	@$(COMPOSE_NODE) ps
-	@echo ""
-	@echo "== Imagenes CDC =="
-	@docker images | grep -i cdc || true
+## ps: estado de contenedores
+.PHONY: ps
+ps:
+	$(COMPOSE) ps
 
-logs: env-check repo-check
-	$(COMPOSE_NODE) logs -f --tail=$(TAIL)
+## logs: logs de todos los servicios (TAIL=N para ajustar)
+.PHONY: logs
+logs:
+	$(COMPOSE) logs -f --tail=$(TAIL)
 
-logs-cdc-front: env-check repo-check
+## logs-back: logs del back
+.PHONY: logs-back
+logs-back:
+	$(COMPOSE) logs -f --tail=$(TAIL) back
+
+## logs-front: logs del front
+.PHONY: logs-front
+logs-front:
 	$(COMPOSE) logs -f --tail=$(TAIL) front-ng
 
-logs-cdc-back: env-check repo-check
-	$(COMPOSE_NODE) logs -f --tail=$(TAIL) back
+## config: renderiza el compose efectivo (debug de interpolacion)
+.PHONY: config
+config:
+	$(COMPOSE) config
 
-# =============================================================================
-# Debug / acceso a contenedores
-# =============================================================================
-config: env-check repo-check
-	$(COMPOSE_NODE) config
+## exec-back: shell en el back
+.PHONY: exec-back
+exec-back:
+	$(COMPOSE) exec back sh
 
-exec-cdc-front: env-check repo-check
+## exec-front: shell en el front
+.PHONY: exec-front
+exec-front:
 	$(COMPOSE) exec front-ng sh
-
-exec-cdc-back: env-check repo-check
-	$(COMPOSE_NODE) exec back sh
-
-# =============================================================================
-# Git / Deploy
-# =============================================================================
-pull: repo-check
-	@echo "== Git pull cdc-front-ng =="
-	@if [ -d "$(CDC_FRONT_DIR)/.git" ]; then \
-		cd "$(CDC_FRONT_DIR)" && git pull; \
-	else \
-		echo "WARN: $(CDC_FRONT_DIR) no es repo git"; \
-	fi
-	@echo ""
-	@echo "== Git pull cdc-back =="
-	@if [ -d "$(CDC_BACK_DIR)/.git" ]; then \
-		cd "$(CDC_BACK_DIR)" && git pull; \
-	else \
-		echo "WARN: $(CDC_BACK_DIR) no es repo git"; \
-	fi
-	@echo ""
-	@echo "== Git pull infra =="
-	@if [ -d "$(INFRA_DIR)/.git" ]; then \
-		cd "$(INFRA_DIR)" && git pull; \
-	else \
-		echo "WARN: $(INFRA_DIR) no es repo git"; \
-	fi
-
-deploy: env-check repo-check pull
-	$(COMPOSE_NODE) up -d --build --remove-orphans
-
-redeploy: env-check repo-check
-	$(COMPOSE_NODE) down --remove-orphans
-	$(COMPOSE_NODE) up -d --build --remove-orphans
-
-# =============================================================================
-# Infra helpers
-# =============================================================================
-images:
-	@docker images
-
-volumes:
-	@docker volume ls
-
-networks:
-	@docker network ls
-
-prune-soft:
-	@docker image prune -f
-	@docker container prune -f
-	@docker network prune -f
-
-prune:
-	@docker system prune -af --volumes
