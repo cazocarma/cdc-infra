@@ -6,6 +6,7 @@ name: greenvic-cdc-${CDC_ENV:-prd}
 #
 # Consume las redes externas de platform:
 #   - platform_identity  (Keycloak)
+#   - platform_cache     (Redis — session store BFF, DB 3 per AUTH_STANDARD §4)
 #
 # El router de platform (NGINX :81) alcanza este stack por los aliases
 # `cdc-frontend` y `cdc-backend`.
@@ -96,6 +97,7 @@ services:
         aliases:
           - cdc-backend
       identity:
+      cache:
     healthcheck:
       test:
         - "CMD-SHELL"
@@ -112,3 +114,6 @@ networks:
   identity:
     external: true
     name: platform_identity
+  cache:
+    external: true
+    name: platform_cache
