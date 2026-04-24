@@ -1,17 +1,23 @@
 name: greenvic-cdc-${CDC_ENV:-prd}
 
 # =============================================================================
-# CDC — docker-compose base (prod-like).
-# Alineado con platform/docs/PLATFORM_INTEGRATION_SPEC.md §6.
+# CDC — docker-compose BASE.
 #
-# Consume las redes externas de platform:
-#   - platform_identity  (Keycloak)
-#   - platform_cache     (Redis — session store BFF, DB 3 per AUTH_STANDARD §4)
+# Este archivo contiene lo que existe en ambos ambientes (dev y prd):
+#   - servicio `back` (cdc-back)
+#   - servicio `front-ng` (cdc-front-ng)
+#   - redes compartidas con platform
+#
+# Overrides especificos de cada ambiente viven en overlays:
+#   - docker-compose.dev.yml  → NODE_ENV=development, bind mounts + hot-reload,
+#                               OIDC URLs localhost, cookies relajadas.
+#   - docker-compose.prd.yml  → NODE_ENV=production, IP LAN, cookies secure.
+#
+# El Makefile combina base + overlay correspondiente a CDC_ENV.
+# No correr `docker compose -f docker-compose.yml` solo — siempre va con overlay.
 #
 # El router de platform (NGINX :81) alcanza este stack por los aliases
 # `cdc-frontend` y `cdc-backend`.
-#
-# En dev, docker-compose.override.yml agrega bind mounts + hot-reload.
 # =============================================================================
 
 x-logging: &default-logging
@@ -85,8 +91,7 @@ services:
     env_file:
       - ./.env
     environment:
-      NODE_ENV: "${NODE_ENV:-production}"
-      PORT: "4000"
+      PORT: "${PORT:-4000}"
       HOSTNAME: "0.0.0.0"
     extra_hosts:
       - "host.docker.internal:host-gateway"

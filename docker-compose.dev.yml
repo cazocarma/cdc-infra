@@ -1,15 +1,20 @@
+name: greenvic-cdc-${CDC_ENV:-dev}
+
 # =============================================================================
-# CDC — docker-compose.dev.yml (local dev overlay)
-# Se carga SOLO cuando CDC_ENV=dev (via Makefile). No se auto-loadea.
+# CDC — docker-compose.dev.yml (overlay DESARROLLO LOCAL)
 #
-# Diseno:
-#   - Back corre `tsx watch` sobre /app/src (bind mount :ro).
-#   - node_modules + tsconfig baked en la imagen (stage `dev`).
-#   - Front corre `ng serve` con hot-reload.
-#   - Se lift de limites de memoria: esbuild/Angular necesitan mas que prd.
+# Se usa automaticamente cuando CDC_ENV=dev en .env.
+# Combinacion: docker compose -f docker-compose.yml -f docker-compose.dev.yml
+#
+# Define los overrides especificos de dev:
+#   - Back con build target `dev`, `tsx watch` sobre /app/src.
+#   - Front con `ng serve` hot-reload (target `builder`, memory lift a 2G).
+#   - NODE_ENV=development, LOG_LEVEL=debug.
+#   - OIDC URLs publicas -> localhost:81 (via router de platform dev).
+#   - Cookies relajadas (SECURE=false, SAMESITE=lax) para HTTP plano.
 #
 # Requisitos:
-#   - `platform` arriba en el mismo host con PLATFORM_ENV=dev.
+#   - `platform` arriba con PLATFORM_ENV=dev (keycloak dev-mem + router).
 #   - CDC_ENV=dev en .env.
 # =============================================================================
 
@@ -23,8 +28,13 @@ services:
     environment:
       NODE_ENV: development
       LOG_LEVEL: debug
-      # OIDC_* y SESSION_* viven solo en .env (fuente canonica).
-      # Este overlay solo pisa lo que es especifico de dev (NODE_ENV, LOG_LEVEL, bind mounts).
+      # OIDC: browser -> Keycloak local (via router de platform dev en :8080).
+      OIDC_ISSUER_URL: http://localhost:8080/realms/CDCRealm
+      OIDC_REDIRECT_URI: http://localhost:81/api/v1/auth/callback
+      OIDC_POST_LOGOUT_REDIRECT_URI: http://localhost:81/login
+      # Cookies relajadas (HTTP plano en dev).
+      SESSION_COOKIE_SECURE: "false"
+      SESSION_COOKIE_SAMESITE: lax
     volumes:
       - ../cdc-back/src:/app/src:ro
       - ../cdc-back/package.json:/app/package.json:ro
@@ -35,7 +45,7 @@ services:
     image: cdc-front-ng:dev
     container_name: cdc-front-dev
     build:
-      target: builder
+      target: deps
     read_only: false
     user: "0:0"
     command:
@@ -49,7 +59,10 @@ services:
           cpus: "2.0"
     volumes:
       - ../cdc-front-ng/src:/app/src:cached
+      - ../cdc-front-ng/public:/app/public:cached
       - ../cdc-front-ng/angular.json:/app/angular.json:ro
       - ../cdc-front-ng/tsconfig.json:/app/tsconfig.json:ro
+      - ../cdc-front-ng/tsconfig.app.json:/app/tsconfig.app.json:ro
       - ../cdc-front-ng/package.json:/app/package.json:ro
       - ../cdc-front-ng/proxy.conf.json:/app/proxy.conf.json:ro
+      - ../cdc-front-ng/.postcssrc.json:/app/.postcssrc.json:ro
